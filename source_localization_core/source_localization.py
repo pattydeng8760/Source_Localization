@@ -2,7 +2,7 @@ import os, glob
 import numpy as np
 from multiprocessing import Pool, cpu_count
 from .extract import extract_data, extract_files, extract_surface
-from .fft_surface import fft_surface_data
+from .fft_surface import fft_surface_data, source_fft
 from .utils import *
 import argparse
 
@@ -21,6 +21,7 @@ def parse_arguments():
     parser.add_argument("--option", "-o", type=int, default=1, help="extract options. 1 = sequential, 2 = skip every n files. Defaults to 1.")
     parser.add_argument("--nskip", "-n", type=int, default=1, help="Skip option. Defaults to 1.")
     parser.add_argument("--max-file", "-m", type=int, default=5000, help="Maximum number of files to extract. Defaults to 5000.")
+    parser.add_argument("--freq-select", "-fs", type=list, default=[1000], help="Frequency selection for source localization. Defaults to 1000 Hz.")
 
 class SourceLocalization():
     def __init__(self, args):
@@ -28,6 +29,7 @@ class SourceLocalization():
         self.working_dir = args.working_dir
         self.mesh_file = os.path.join(args.mesh_dir, args.mesh_file)
         self.reload = args.reload
+        self.freq_select = args.freq_select
         if os.path.exists(self.mesh_file) == False:
             raise FileNotFoundError(f"Mesh file not found: {self.mesh_file}")
         self.FWH_data_dir = args.FWH_data_dir
@@ -53,8 +55,10 @@ class SourceLocalization():
         surface_pressure_data,dt = extract_data(self.working_dir, self.FWH_data_dir, self.airfoil_mesh, dtype='float64', reload=self.reload)
         
         # Performing FFT on the surface pressure data
-        surface_pressure_fft_data = fft_surface_data(surface_pressure_data, self.var, dt, weight='default',nOvlp=128,nDFT=256,window='default',method='fast', reload=self.reload)
-
+        #surface_pressure_fft_data = fft_surface_data(surface_pressure_data, self.var, dt, weight='default',nOvlp=128,nDFT=256,window='default',method='fast', reload=self.reload)
+        surface_pressure_fft_data = fft_surface_data(surface_pressure_data, self.var, dt, reload=self.reload)
+        source_fft(self.working_dir, self.airfoil_mesh, surface_pressure_data, surface_pressure_fft_data, self.freq_select)
+        
 def main(args=None):
     # Parse CLI args
     if args is None:

@@ -15,6 +15,7 @@ config = {
     "var"               : "pressure",
     "reload"            : False,
     "extract_FWH"       : False,
+    "freq_select"       : [500, 1000, 2000, 3000],
 }
 
 args = Namespace(**config)
