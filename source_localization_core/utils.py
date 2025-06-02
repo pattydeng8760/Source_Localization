@@ -1,5 +1,6 @@
 import numpy as np
 import warnings
+import os, builtins, time, sys
 warnings.filterwarnings("ignore", category=RuntimeWarning)
 
 
@@ -167,3 +168,23 @@ def replace_zeros_vectorized(data):
 
 def next_greater_power_of_2(x):
     return 2**(x-1).bit_length()
+
+def print(text, **kwargs):
+    builtins.print(text, **kwargs)
+    os.fsync(sys.stdout)
+
+def setup_logging(log_file):
+    sys.stdout = open(log_file, "w", buffering=1)
+
+def init_logging_from_cut(var, freq_select):
+    freq_str = "_".join(map(str, freq_select))
+    log_file = f"log_source_localization_{var}_{freq_str}.txt"
+    setup_logging(log_file)
+
+def timer(func):
+    def inner(*args, **kwargs):
+        start = time.time()
+        result = func(*args, **kwargs)
+        print(f"The total compute time is: {int(time.time() - start)} s")
+        return result
+    return inner

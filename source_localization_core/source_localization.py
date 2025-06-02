@@ -4,7 +4,9 @@ from multiprocessing import Pool, cpu_count
 from .extract import extract_data, extract_files, extract_surface
 from .fft_surface import fft_surface_data, source_fft
 from .utils import *
+from .source_localization_func import *
 import argparse
+
 
 def parse_arguments():
     parser = argparse.ArgumentParser(
@@ -52,17 +54,21 @@ class SourceLocalization():
                     ntime += 1
         
         # Extracting the surface pressure data
-        surface_pressure_data,dt = extract_data(self.working_dir, self.FWH_data_dir, self.airfoil_mesh, dtype='float64', reload=self.reload)
+        self.surface_pressure_data,self.dt = extract_data(self.working_dir, self.FWH_data_dir, self.airfoil_mesh, dtype='float64', reload=self.reload)
         
         # Performing FFT on the surface pressure data
         #surface_pressure_fft_data = fft_surface_data(surface_pressure_data, self.var, dt, weight='default',nOvlp=128,nDFT=256,window='default',method='fast', reload=self.reload)
-        surface_pressure_fft_data = fft_surface_data(surface_pressure_data, self.var, dt, reload=self.reload)
-        source_fft(self.working_dir, self.airfoil_mesh, surface_pressure_data, surface_pressure_fft_data, self.freq_select)
-        
+        self.surface_pressure_fft_data = fft_surface_data(self.surface_pressure_data, self.var, self.dt, reload=self.reload)
+        source_fft(self.working_dir, self.airfoil_mesh, self.surface_pressure_data, self.surface_pressure_fft_data, self.freq_select)
+        p_hat_s, target_indices = compute_source_localization(self.mesh_file, self.airfoil_mesh, self.surface_pressure_fft_data, self.freq_select)
+        output_source_localization_corrected(self.airfoil_mesh, p_hat_s, self.surface_pressure_fft_data, 
+                                        self.freq_select, target_indices, self.working_dir)
+
 def main(args=None):
     # Parse CLI args
     if args is None:
         args = parse_arguments()
+    init_logging_from_cut(args.var,args.freq_select)
     runner = SourceLocalization(args)
     runner.run()
 
