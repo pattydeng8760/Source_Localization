@@ -8,8 +8,9 @@ from scipy.signal import welch, coherence
 from datetime import datetime
 import multiprocessing
 from multiprocessing import Pool, cpu_count, Value, Lock
+from .utils import spod_parser
 
-def fft_surface_data_old(surface_pressure_data:str, var:str, dt:float, weight='default',nOvlp=128,nDFT=256,window='default',method='fast', reload=False):
+def dft_surface_data(surface_pressure_data:str, var:str, dt:float, weight='default',nOvlp=128,nDFT=256,window='default',method='fast', reload=False):
     text = 'Performing FFT on surface pressure data'
     print(f'\n{text:.^80}\n')
     fft_file_path = surface_pressure_data.replace('.hdf5', '_fft.hdf5')

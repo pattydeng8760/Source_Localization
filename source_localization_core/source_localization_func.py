@@ -9,7 +9,10 @@ import multiprocessing as mp
 from functools import partial
 import warnings
 from antares import Reader, Base, Zone, Instant, Writer
-import h5py# Suppress numba warnings for cleaner output
+import h5py
+import os
+
+# Suppress numba warnings for cleaner output
 warnings.filterwarnings('ignore')
 
 @jit(nopython=True, parallel=True, fastmath=True)
@@ -172,13 +175,13 @@ def compute_acoustic_surface_pressure_parallel(p_hat, zeta, freq_all, normal, ar
     
     Parameters:
     -----------
-    p_hat : np.ndarray, shape (nfreq_all, nodes)
+    p_hat : np.ndarray, shape (nodes, nfreq_all) - BEFORE transpose
         Complex surface pressure in frequency domain for all frequencies
-    zeta : np.ndarray, shape (3, nodes) 
+    zeta : np.ndarray, shape (nodes, 3) - BEFORE transpose
         Position vectors to surface elements [x, y, z coordinates]
     freq_all : np.ndarray, shape (nfreq_all,)
         Complete frequency vector [Hz] corresponding to p_hat
-    normal : np.ndarray, shape (3, nodes)
+    normal : np.ndarray, shape (nodes, 3) - BEFORE transpose
         Unit normal vectors for each surface element
     area : np.ndarray, shape (nodes,)
         Surface area for each surface element
@@ -202,16 +205,28 @@ def compute_acoustic_surface_pressure_parallel(p_hat, zeta, freq_all, normal, ar
     target_freq_indices : np.ndarray
         Indices of target frequencies in the original frequency array
     """
-    p_hat = p_hat.T
-    zeta = zeta.T
-    normal = normal.T
+    
+    # Transpose to get the expected shapes for the algorithm
+    p_hat = p_hat.T      # (nodes, nfreq) -> (nfreq, nodes)
+    zeta = zeta.T        # (nodes, 3) -> (3, nodes)
+    normal = normal.T    # (nodes, 3) -> (3, nodes)
     
     print('The shape of the surface pressure data is:', p_hat.shape)
     print('The shape of the position vector is:', zeta.shape)
     print('The shape of the normal vector is:', normal.shape)
+    
     nfreq_all, nodes = p_hat.shape
     target_frequencies = np.asarray(target_frequencies)
     n_target_freq = len(target_frequencies)
+    
+    print(f"\n{'='*60}")
+    print(f"STARTING ACOUSTIC SURFACE PRESSURE COMPUTATION")
+    print(f"{'='*60}")
+    print(f"Input data shape: {p_hat.shape}")
+    print(f"Number of target frequencies: {n_target_freq}")
+    print(f"Target frequencies: {target_frequencies}")
+    print(f"Method: {method}")
+    print(f"{'='*60}\n")
     
     # Find indices of target frequencies in the complete frequency array
     target_freq_indices = []
@@ -238,15 +253,103 @@ def compute_acoustic_surface_pressure_parallel(p_hat, zeta, freq_all, normal, ar
     
     print(f"Computing with {nodes:,} surface elements and {n_target_freq} target frequencies")
     print(f"Target frequencies: {target_freq_values}")
+    
+    # SPECIAL CASE: Single frequency - use observer-based parallelization
+    if n_target_freq == 1:
+        print(f"\n🔧 SINGLE FREQUENCY DETECTED - Using observer-based parallelization")
+        print(f"Parallelizing across {nodes:,} surface nodes instead of frequencies")
+        
+        freq_idx = target_freq_indices[0]
+        f = target_freq_values[0]
+        
+        print(f"Processing single frequency: {f:.1f} Hz (index {freq_idx})")
+        
+        if f == 0:
+            print("DC frequency - setting to zero")
+            p_hat_s = np.zeros((1, nodes), dtype=complex)
+            return p_hat_s, target_freq_indices
+        
+        # Set up for observer-based parallelization
+        k = 2 * np.pi * f / speed_of_sound
+        p_current = p_hat[freq_idx, :].reshape(1, -1)  # Shape: (1, nodes) for single frequency
+        freq_values_single = np.array([f])  # Single frequency array
+        
+        # Calculate optimal chunk size for observer parallelization
+        if chunk_size is None:
+            # For single frequency, use larger chunks to reduce overhead
+            # Aim for ~4x as many chunks as workers for good load balancing
+            chunk_size = max(1000, nodes // (n_workers*3))
+        
+        print(f"Using observer-based parallelization with chunk_size = {chunk_size:,}")
+        print(f"This will create ~{(nodes + chunk_size - 1) // chunk_size} chunks for {n_workers} workers")
+        
+        # Create chunks of observer indices
+        obs_chunks = []
+        for i in range(0, nodes, chunk_size):
+            end_idx = min(i + chunk_size, nodes)
+            obs_indices = list(range(i, end_idx))
+            
+            # Args: (obs_indices, zeta, normal, area, p_hat_single_freq, freq_values_single, speed_of_sound)
+            args = (obs_indices, zeta, normal, area, p_current, freq_values_single, speed_of_sound)
+            obs_chunks.append((i, args))
+        
+        print(f"Created {len(obs_chunks)} observer chunks")
+        chunk_sizes = [len(chunk[1][0]) for chunk in obs_chunks]
+        print(f"Chunk sizes: min={min(chunk_sizes):,}, max={max(chunk_sizes):,}, avg={sum(chunk_sizes)/len(chunk_sizes):.0f}")
+        
+        # Initialize output for single frequency
+        p_hat_s = np.zeros((1, nodes), dtype=complex)
+        
+        # Process chunks in parallel
+        print(f"Starting parallel computation with {n_workers} workers...")
+        with ProcessPoolExecutor(max_workers=n_workers) as executor:
+            results = []
+            futures = []
+            
+            # Submit all chunks
+            for chunk_start, args in obs_chunks:
+                future = executor.submit(_compute_observer_chunk, args)
+                futures.append((chunk_start, future))
+            
+            print(f"Submitted {len(futures)} observer chunks to workers")
+            
+            # Collect results as they complete
+            completed_chunks = 0
+            for chunk_start, future in futures:
+                obs_indices, p_S_chunk = future.result()
+                results.append((chunk_start, (obs_indices, p_S_chunk)))
+                
+                completed_chunks += 1
+                progress = (completed_chunks / len(futures)) * 100
+                chunk_end = min(chunk_start + chunk_size, nodes)
+                print(f"✅ Completed chunk {completed_chunks}/{len(futures)} ({progress:.1f}%) - nodes {chunk_start:,} to {chunk_end-1:,}")
+        
+        # Reassemble results
+        print(f"Reassembling results from {len(results)} chunks...")
+        for chunk_start, (obs_indices, p_S_chunk) in results:
+            chunk_end = min(chunk_start + chunk_size, nodes)
+            # p_S_chunk has shape (1, chunk_nodes) for single frequency
+            p_hat_s[0, chunk_start:chunk_end] = p_S_chunk[0, :]
+        
+        print(f"✅ Single frequency observer-based computation COMPLETE!")
+        print(f"Final output shape: {p_hat_s.shape}")
+        
+        return p_hat_s, target_freq_indices
+    
+    # MULTI-FREQUENCY CASE: Use parallel processing
+    print(f"\n🔧 MULTI-FREQUENCY CASE - Using parallel processing")
     print(f"Using {n_workers} worker processes with '{method}' parallelization")
     
     # Initialize output for target frequencies only
     p_hat_s = np.zeros((n_target_freq, nodes), dtype=complex)
     
     if method == 'frequency':
+        print(f"Using frequency-based parallelization")
         # Parallelize over frequencies
         if chunk_size is None:
-            chunk_size = max(1, n_target_freq // (n_workers * 4))
+            chunk_size = max(1, n_target_freq // (n_workers * 2))
+        
+        print(f"Creating frequency chunks with chunk_size = {chunk_size}")
         
         # Create chunks of frequency indices
         freq_chunks = []
@@ -259,6 +362,8 @@ def compute_acoustic_surface_pressure_parallel(p_hat, zeta, freq_all, normal, ar
             
             args = (list(range(len(freq_indices_chunk))), freq_values_chunk, p_hat_chunk, zeta, normal, area, speed_of_sound)
             freq_chunks.append((i, args))
+        
+        print(f"Created {len(freq_chunks)} frequency chunks")
         
         # Process chunks in parallel
         with ProcessPoolExecutor(max_workers=n_workers) as executor:
@@ -278,9 +383,12 @@ def compute_acoustic_surface_pressure_parallel(p_hat, zeta, freq_all, normal, ar
             p_hat_s[chunk_start:chunk_end, :] = p_S_chunk
                 
     elif method == 'observer':
+        print(f"Using observer-based parallelization")
         # Parallelize over observer points
         if chunk_size is None:
-            chunk_size = max(1, nodes // (n_workers * 4))
+            chunk_size = max(100, nodes // (n_workers * 2))  # Larger chunks for single frequency
+        
+        print(f"Creating observer chunks with chunk_size = {chunk_size}")
         
         # Extract p_hat data for target frequencies only
         p_hat_target = p_hat[target_freq_indices, :]
@@ -293,6 +401,8 @@ def compute_acoustic_surface_pressure_parallel(p_hat, zeta, freq_all, normal, ar
             
             args = (obs_indices, zeta, normal, area, p_hat_target, target_freq_values, speed_of_sound)
             obs_chunks.append((i, args))
+        
+        print(f"Created {len(obs_chunks)} observer chunks")
         
         # Process chunks in parallel
         with ProcessPoolExecutor(max_workers=n_workers) as executor:
@@ -313,6 +423,11 @@ def compute_acoustic_surface_pressure_parallel(p_hat, zeta, freq_all, normal, ar
     
     else:
         raise ValueError("Method must be 'frequency' or 'observer'")
+    
+    print(f"\n{'='*60}")
+    print(f"COMPUTATION COMPLETE!")
+    print(f"Output shape: {p_hat_s.shape}")
+    print(f"{'='*60}\n")
     
     return p_hat_s, target_freq_indices
 
@@ -394,7 +509,7 @@ def compute_acoustic_surface_pressure_memory_efficient(p_hat, zeta, freq_all, no
             observer_pos = zeta[:, obs_idx].astype(np.float64)
             
             p_hat_s[i, obs_idx] = _compute_surface_integral_numba(
-                observer_pos, zeta.astype(np.float64), normals.astype(np.float64),
+                observer_pos, zeta.astype(np.float64), normal.astype(np.float64),
                 p_current.astype(np.complex128), area.astype(np.float64), k
             )
     
@@ -409,7 +524,7 @@ def estimate_computation_time(nodes, n_target_freq, n_workers=None):
         n_workers = mp.cpu_count()
     
     # Rough estimate: ~1e-8 seconds per surface element pair per frequency
-    total_ops = nodes * nodes * n_target_freq*10
+    total_ops = nodes * nodes * n_target_freq * 10
     ops_per_second = 2e8 * n_workers  # With parallelization and numba
     
     estimated_time = total_ops / ops_per_second
@@ -419,6 +534,7 @@ def estimate_computation_time(nodes, n_target_freq, n_workers=None):
     
     return estimated_time
 
+
 def compute_source_localization(whole_mesh, airfoil_mesh, surface_pressure_fft_data, freq_select):
     """
     Run the source localization method.
@@ -426,48 +542,66 @@ def compute_source_localization(whole_mesh, airfoil_mesh, surface_pressure_fft_d
     """
     text = 'Performing Surface Source Localization'
     print(f'\n{text:.^80}\n')
+    
     # Loading the surface mesh
     print('----> Loading the Airfoil Surface Mesh')
     reader = Reader('hdf_antares')
     reader['filename'] = airfoil_mesh
-    base  = reader.read() # b is the Base object of the Antares API
+    base = reader.read()  # b is the Base object of the Antares API
     base.show()
-    zeta = np.transpose([base[0][0]['x'],base[0][0]['y'],base[0][0]['z']])     # Position vector to the source location individual elements on the surface
+    
+    # Create zeta with correct shape (nodes, 3) then transpose to (3, nodes)
+    x_coords = base[0][0]['x']
+    y_coords = base[0][0]['y'] 
+    z_coords = base[0][0]['z']
+    
+    print(f"Coordinate array shapes: x={x_coords.shape}, y={y_coords.shape}, z={z_coords.shape}")
+    
+    # Create zeta with shape (nodes, 3)
+    zeta = np.column_stack([x_coords, y_coords, z_coords])
+    
+    print(f"zeta shape after creation: {zeta.shape} (should be (nodes, 3))")
     
     print('\n----> Loading the Airfoil Normal Vector')
-    # Extracting the normal vector from the bas
-    faces = [6, 8, 9, 10, 11] # The group index for the faces of the mesh on the airfoil
+    # Extracting the normal vector from the base
+    faces = [6, 8, 9, 10, 11]  # The group index for the faces of the mesh on the airfoil
     shape = []                # Initializing an intermediate variable for the size of each group
     normals = []              # Initializing the normal vector
-    with h5py.File( whole_mesh, 'r') as h5_file:
+    
+    with h5py.File(whole_mesh, 'r') as h5_file:
         data = h5_file['Boundary/bnode->normal'][:]
     data = np.reshape(data, (-1, 3))
+    
     for i in range(1, 12):
         group = 'Patch/' + str(i) + '/Coordinates/x'
-        with h5py.File( whole_mesh, 'r') as h5_file:
+        with h5py.File(whole_mesh, 'r') as h5_file:
             shape.append(np.shape(h5_file[group][:])[0])
         
         if i in faces:
             start_idx = np.cumsum(shape[:-1])[-1] if len(shape) > 1 else 0
             end_idx = np.cumsum(shape)[-1]
             normals.append(data[start_idx:end_idx])
+    
     # Convert normals to a numpy array after the loop
     normals = np.concatenate(normals, axis=0) if normals else np.array([])
     normals = normals / np.linalg.norm(normals, axis=1, keepdims=True)
     
+    print(f"normals shape after processing: {normals.shape} (should be (nodes, 3))")
+    
     # Loading the Fourier Transform data
     print('\n----> Loading the Fourier Transform of the Pressure Data: {0:s}'.format(surface_pressure_fft_data))
-    with h5py.File(surface_pressure_fft_data,'r') as h5f:
+    with h5py.File(surface_pressure_fft_data, 'r') as h5f:
         p_hat = h5f['pressure_fft'][:]
         freq = h5f['frequency'][:]
-        k = np.pi*2*freq/340     # The wavenumber
+        k = np.pi * 2 * freq / 340     # The wavenumber
         assert (np.shape(p_hat)[0] == np.shape(normals)[0]), 'The number of nodes in the pressure data and the normal vector do not match'
-    print('     The pressure data is %d (nodes) x %d (frequency bins)' %(np.shape(p_hat)[0],np.shape(p_hat)[1]))
+    
+    print('     The pressure data is %d (nodes) x %d (frequency bins)' % (np.shape(p_hat)[0], np.shape(p_hat)[1]))
     
     # The surface area from the surface mesh
     print('\n----> Computing the airfoil surface area')
-    with h5py.File(airfoil_mesh,'r') as h5_file:
-        # 1) Define side‐length in meters:
+    with h5py.File(airfoil_mesh, 'r') as h5_file:
+        # 1) Define side-length in meters:
         a = 4.2e-4  # 4.2 mm = 4.2e-3 m
         # 2) Compute area of one equilateral triangle:
         area_per_element = (np.sqrt(3) / 4) * a**2   # [m^2]
@@ -479,8 +613,26 @@ def compute_source_localization(whole_mesh, airfoil_mesh, surface_pressure_fft_d
         assert surface_area.shape[0] == p_hat.shape[0], (
             "     The number of elements in p_hat must match the number of area entries"
         )
+    
     print("     The surface area of the airfoil is %f m^2" % np.sum(surface_area))
+    
+    # Debug print to check shapes
+    print(f"\nFINAL Debug - Array shapes:")
+    print(f"  zeta shape: {zeta.shape} (should be (nodes, 3))")
+    print(f"  normals shape: {normals.shape} (should be (nodes, 3))")
+    print(f"  p_hat shape: {p_hat.shape} (should be (nodes, nfreq))")
+    print(f"  surface_area shape: {surface_area.shape} (should be (nodes,))")
+    
+    # Verify all shapes are consistent
+    nodes = zeta.shape[0]
+    assert zeta.shape == (nodes, 3), f"zeta shape {zeta.shape} != ({nodes}, 3)"
+    assert normals.shape == (nodes, 3), f"normals shape {normals.shape} != ({nodes}, 3)"
+    assert p_hat.shape[0] == nodes, f"p_hat nodes {p_hat.shape[0]} != {nodes}"
+    assert surface_area.shape[0] == nodes, f"surface_area nodes {surface_area.shape[0]} != {nodes}"
+    
+    print("✅ All array shapes are consistent!")
     print("Starting computation...")
+    
     estimate_computation_time(np.shape(p_hat)[0], len(freq_select))
     
     # Choose method based on dataset characteristics
@@ -497,17 +649,18 @@ def compute_source_localization(whole_mesh, airfoil_mesh, surface_pressure_fft_d
         n_workers=mp.cpu_count(),  # Adjust based on your system
         chunk_size=None
     )
+    
     print("Computation complete!")
     print(f"Output shape: {p_hat_s.shape}")
-    print(f"Target frequency indices in original array: {freq_select}")
+    print(f"Target frequency indices in original array: {target_indices}")
     
     # Show results for each target frequency
-    for i, (freq, idx) in enumerate(zip(freq_select, target_indices)):
-        original_max = np.max(np.abs(p_hat[idx, :]))
+    for i, (freq_val, idx) in enumerate(zip(freq_select, target_indices)):
+        original_max = np.max(np.abs(p_hat[:, idx]))
         acoustic_max = np.max(np.abs(p_hat_s[i, :]))
         reduction = original_max / acoustic_max if acoustic_max > 0 else np.inf
         
-        print(f"Frequency {freq} Hz: Max reduction = {reduction:.1f}")
+        print(f"Frequency {freq_val} Hz: Max reduction = {reduction:.1f}")
     
     return p_hat_s, target_indices
 
@@ -626,7 +779,9 @@ def output_source_localization_corrected(airfoil_mesh, p_hat_s, surface_pressure
         animated_base[0][str(0)][f'frequency_{freq_int:04d}_Hz_P_orig_phase'] = np.angle(p_orig_current)
     
     # Write output file
-    output_filename = os.path.join(output_path, 'Surface_Localization.h5')
+    output_freq = "_".join(map(str, freq_select))
+    output_name = f"Surface_Localization_{output_freq}"
+    output_filename = os.path.join(output_path, output_name)
     w = Writer('hdf_antares')
     w['filename'] = output_filename
     w['base'] = animated_base
@@ -651,7 +806,6 @@ def output_source_localization_corrected(airfoil_mesh, p_hat_s, surface_pressure
     
     text = 'Source Localization Complete!'
     print(f'\n{text:.^80}\n')
-
 
 # def output_source_localization(airfoil_mesh, p_hat_s, surface_pressure_fft_data, freq_select, output_path):
 #     with h5py.File(surface_pressure_fft_data,'r') as h5f:
