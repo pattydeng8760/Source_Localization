@@ -15,7 +15,9 @@ config = {
     "var"               : "pressure",
     "reload"            : False,
     "extract_FWH"       : False,
-    "freq_select"       : [500, 1000, 2000, 3000],
+    "freq_select"       : [2500],
+    "source_localization": True,
+    "fft_method"        : "DFT",
 }
 
 args = Namespace(**config)
