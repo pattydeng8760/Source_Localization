@@ -13,7 +13,7 @@ from .utils import spod_parser
 def dft_surface_data(surface_pressure_data:str, var:str, dt:float, weight='default',nOvlp=128,nDFT=256,window='default',method='fast', reload=False):
     text = 'Performing FFT on surface pressure data'
     print(f'\n{text:.^80}\n')
-    fft_file_path = surface_pressure_data.replace('.hdf5', '_fft.hdf5')
+    fft_file_path = surface_pressure_data.replace('.hdf5', '_dft.hdf5')
     if os.path.exists(fft_file_path) == True and reload == False:  
         pass
     else:
@@ -165,7 +165,7 @@ def fft_surface_data(surface_pressure_data: str, var: str, dt: float, reload: bo
     header = "Performing FFT on surface pressure data"
     print(f"\n{header:.^80}\n")
     
-    fft_file_path = surface_pressure_data.replace('.hdf5', '_FFT.hdf5')
+    fft_file_path = surface_pressure_data.replace('.hdf5', '_fft.hdf5')
     if os.path.exists(fft_file_path) and not reload:
         print(f"{fft_file_path} already exists. Skipping FFT computation.")
     else:

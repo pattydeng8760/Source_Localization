@@ -256,7 +256,7 @@ def compute_acoustic_surface_pressure_parallel(p_hat, zeta, freq_all, normal, ar
     
     # SPECIAL CASE: Single frequency - use observer-based parallelization
     if n_target_freq == 1:
-        print(f"\n🔧 SINGLE FREQUENCY DETECTED - Using observer-based parallelization")
+        print(f"\nSINGLE FREQUENCY DETECTED - Using observer-based parallelization")
         print(f"Parallelizing across {nodes:,} surface nodes instead of frequencies")
         
         freq_idx = target_freq_indices[0]
@@ -602,13 +602,15 @@ def compute_source_localization(whole_mesh, airfoil_mesh, surface_pressure_fft_d
     print('\n----> Computing the airfoil surface area')
     with h5py.File(airfoil_mesh, 'r') as h5_file:
         # 1) Define side-length in meters:
-        a = 4.2e-4  # 4.2 mm = 4.2e-3 m
+        #a = 4.2e-4  # 4.2 mm = 4.2e-3 m
         # 2) Compute area of one equilateral triangle:
-        area_per_element = (np.sqrt(3) / 4) * a**2   # [m^2]
+        #area_per_element = (np.sqrt(3) / 4) * a**2   # [m^2]
         # 3) Build a 1D array so that each triangle i has the same area:
         #    We assume `p_hat` is already defined (length = number of elements).
-        num_elems = p_hat.shape[0]
-        surface_area = np.full(num_elems, area_per_element)
+        #num_elems = p_hat.shape[0]
+        #surface_area = np.full(num_elems, area_per_element)
+        surface_volume = h5_file['/0000/instants/0000/variables/VD_volume_node'][:]
+        surface_area = surface_volume**(2/3)
         # 4) Check sizes match:
         assert surface_area.shape[0] == p_hat.shape[0], (
             "     The number of elements in p_hat must match the number of area entries"

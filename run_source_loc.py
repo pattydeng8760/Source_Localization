@@ -9,15 +9,15 @@ from source_localization_core.source_localization import main
 
 config = {
     "working_dir"       : "./",
-    "mesh_dir"          : "/project/p/plavoie/denggua1/BBDB_10AOA/MESH_ZONE_Apr24",
+    "mesh_dir"          : "/project/rrg-plavoie/denggua1/BBDB_10AOA/MESH_ZONE_Apr24",
     "mesh_file"         : "Bombardier_10AOA_Combine_Apr24.mesh.h5",
-    "FWH_data_dir"      : "/project/p/plavoie/denggua1/BBDB_10AOA/RUN_ZONE_Apr24/FWH_Airfoil/FWH_Data_TTG",
+    "FWH_data_dir"      : "/project/rrg-plavoie//denggua1/BBDB_10AOA/RUN_ZONE_Apr24/FWH_Airfoil/FWH_Data_TTG",
     "var"               : "pressure",
     "reload"            : False,
     "extract_FWH"       : False,
-    "freq_select"       : [2500],
+    "freq_select"       : [1000, 2000,3000],
     "source_localization": True,
-    "fft_method"        : "DFT",
+    "fft_method"        : "FFT",
 }
 
 args = Namespace(**config)

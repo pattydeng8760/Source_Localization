@@ -5,6 +5,7 @@ from .extract import extract_data, extract_files, extract_surface
 from .fft_surface import dft_surface_data,fft_surface_data, source_fft
 from .utils import *
 from .source_localization_func import *
+from .source_localization_func_rev import *
 import argparse
 
 
@@ -61,16 +62,30 @@ class SourceLocalization():
         
         # Performing FFT on the surface pressure data
         if self.fft_method == 'DFT':
-            self.surface_pressure_fft_data = dft_surface_data(self.surface_pressure_data, self.var, self.dt, weight='default',nOvlp=256,nDFT=512,window='default',method='fast', reload=self.reload)
+            self.surface_pressure_fft_data = dft_surface_data(self.surface_pressure_data, self.var, self.dt, weight='default',nOvlp=256,nDFT=512,window='default',method='fast', reload=True)
         else:
-            self.surface_pressure_fft_data = fft_surface_data(self.surface_pressure_data, self.var, self.dt, reload=self.reload)
+            self.surface_pressure_fft_data = fft_surface_data(self.surface_pressure_data, self.var, self.dt, reload=True)
         source_fft(self.working_dir, self.airfoil_mesh, self.surface_pressure_data, self.surface_pressure_fft_data, self.freq_select)
     
     def run_source_localization(self):
         p_hat_s, target_indices = compute_source_localization(self.mesh_file, self.airfoil_mesh, self.surface_pressure_fft_data, self.freq_select)
         output_source_localization_corrected(self.airfoil_mesh, p_hat_s, self.surface_pressure_fft_data, 
                                         self.freq_select, target_indices, self.working_dir)
-
+        # # Memory-efficient computation
+        # nblocks = 1000  # Adjust based on available memory
+        # nproc = cpu_count()     # Adjust based on available CPUs
+        
+        # p_hat_s, target_indices = compute_source_localization_blocked(
+        #     self.mesh_file, self.airfoil_mesh, self.surface_pressure_fft_data,
+        #     self.freq_select, nblocks=nblocks, nproc=nproc
+        # )
+        
+        # # Save results incrementally
+        # save_results_incrementally(
+        #     self.airfoil_mesh, p_hat_s, self.surface_pressure_fft_data,
+        #     self.freq_select, target_indices, self.working_dir
+        # )
+    
 def main(args=None):
     # Parse CLI args
     if args is None:
