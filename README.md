@@ -21,27 +21,27 @@ sound is generated where the incident nearfield pressure no longer satisfies the
 
 ## **Method Summary**
 
-### 1. **Mathematical Foundation**
+### 1. Mathematical Foundation
 
 The method derives from the **Kirchhoff surface integral formulation** of the FW–H equation.  
 Given the total surface pressure \( \hat{p}(\mathbf{x}) \), the acoustically relevant component \( \hat{p}_S \) is defined by:
 
 \[
 \hat{p}_S(\mathbf{x}) = \frac{1}{2\pi} \; \text{P.V.} \! \int_{\partial V_B} 
-e^{-ikr} (ik r + 1) \frac{\mathbf{e}_r \cdot \mathbf{n}}{r^2} \, \hat{p}(\boldsymbol{\xi}) \, dS(\boldsymbol{\xi})
+e^{-ikr} (ikr + 1) \frac{\mathbf{e}_r \cdot \mathbf{n}}{r^2} \, \hat{p}(\boldsymbol{\xi}) \, dS(\boldsymbol{\xi})
 \]
 
 where P.V. denotes the **Cauchy principal value integral**,  
-\( k = \omega/a_\infty \) is the wavenumber,  
+\( k = \omega / a_\infty \) is the wavenumber,  
 \( \mathbf{e}_r \) is the unit vector between surface points, and  
 \( \mathbf{n} \) is the local surface normal.
 
-The **surface source term** \( q \) is subsequently defined as:
+The **surface source term** \( q(\mathbf{x}) \) is subsequently defined as:
 
 \[
 q(\mathbf{x}) = \frac{1}{2} \hat{p}_S -
 \frac{1}{4\pi} \; \text{P.V.} \! \int_{\partial V_B} 
-e^{-ikr} (ik r + 1) \frac{\mathbf{e}_r \cdot \mathbf{n}}{r^2} \, \hat{p}_S(\boldsymbol{\xi}) \, dS(\boldsymbol{\xi})
+e^{-ikr} (ikr + 1) \frac{\mathbf{e}_r \cdot \mathbf{n}}{r^2} \, \hat{p}_S(\boldsymbol{\xi}) \, dS(\boldsymbol{\xi})
 \]
 
 This quantity \( q \) provides a **scalar, observer-independent map** of local sound generation intensity.
