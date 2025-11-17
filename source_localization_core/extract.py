@@ -4,11 +4,12 @@ import h5py
 import shutil
 import numpy as np
 from antares import Reader
+from types import SimpleNamespace
 import datetime
 from .utils import replace_zeros_vectorized
 from antares import Reader, Writer, Family, Treatment
 
-def extract_data(working_dir:str, data_dir:str, airfoil_mesh:str, dtype='float64', reload:bool=False):
+def extract_data(working_dir:str, data_dir:str, airfoil_mesh:str, dtype='float64', reload:bool=False, option:SimpleNamespace=None):
     """
     This function copies the surface pressure data from the FWH files to the working directory to 
     avoid I/O issues and corruption of the data inside the source directory.
@@ -19,6 +20,9 @@ def extract_data(working_dir:str, data_dir:str, airfoil_mesh:str, dtype='float64
         airfoil_mesh (str): Path to the airfoil mesh file.
         dtype (str, optional): Data type for the pressure data. Defaults to 'float64'.
         reload (bool, optional): Flag to reload the data from the working directory. Defaults to False.
+        min (int, optional): Minimum index of files to extract. Defaults to 0.
+        max (int, optional): Maximum index of files to extract. Defaults to 5000.
+        nskip (int, optional): Number of files to skip during extraction. Defaults to 1.
     Returns:
         surface_pressure_data (str): Path to the extracted surface pressure data file.
         dt (float): Time step between the FWH data files.
@@ -30,19 +34,21 @@ def extract_data(working_dir:str, data_dir:str, airfoil_mesh:str, dtype='float64
         print('----> The pressure data is already extracted at: {0:s}'.format(working_dir,'pressure_airfoil.hdf5'))
         print('\n----> Loading the pressure data')
         surface_pressure_data = os.path.join(working_dir,'pressure_airfoil.hdf5')
-        l=sorted(glob.glob(os.path.join(data_dir,'FWH_Airfoil_0000*.h5')))
-        with h5py.File(l[-2], 'r') as f:
+        fwh_data=sorted(glob.glob(os.path.join(data_dir,'FWH_Airfoil_0000*.h5')))
+        with h5py.File(fwh_data[-2], 'r') as f:
             t1 = f['frame_data/time'][()]
-        with h5py.File(l[-1], 'r') as f:
+        with h5py.File(fwh_data[-1], 'r') as f:
             t2 = f['frame_data/time'][()]
         dt = t2 - t1
         dt = dt[0]
     else:  
         print('\n----> Extacting the pressure data from FWH files')
         # The directory information
-        l=sorted(glob.glob(os.path.join(data_dir,'FWH_Airfoil_0000*.h5')))
+        fwh_data=sorted(glob.glob(os.path.join(data_dir,'FWH_Airfoil_0000*.h5')))
+        if option.option == 2:
+            fwh_data = fwh_data[option.min:option.max:option.nskip]
         # The number of files (timesteps)
-        nb_files=len(l)
+        nb_files=len(fwh_data)
         print('      The number of time steps is %d\n' %nb_files)
         # Extract the number of nodal points from the mesh
         file = airfoil_mesh
@@ -55,7 +61,7 @@ def extract_data(working_dir:str, data_dir:str, airfoil_mesh:str, dtype='float64
         data_time = np.zeros((nb_files), dtype=dtype)
         print('      The surface data will be extracted to a %d (nodes) x %d (timestep), array' %(nb_points,nb_files))
         # Running the loop to extract the pressure data and export as hdf5 file
-        for it,filename in enumerate(l):
+        for it,filename in enumerate(fwh_data):
                 print('            Extracting file %s ...' %os.path.split(filename)[1]) if np.mod(it,100) == 0 else None
                 with h5py.File(filename, 'r') as f:
                         # The pressure array from FWH data into 1D 

@@ -124,6 +124,8 @@ def compute_acoustic_surface_pressure_parallel(p_hat, zeta, freq_all, normal, ar
     
     # Extract p_hat data for target frequencies only
     p_hat_target = p_hat[target_freq_indices, :]
+    # Initialize output for target frequencies only
+    p_hat_s = np.zeros((n_target_freq, nodes), dtype=complex)
     
     # Create chunks of observer indices
     obs_chunks = []

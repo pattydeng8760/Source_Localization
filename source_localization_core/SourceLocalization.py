@@ -1,11 +1,13 @@
 import os, glob
 import numpy as np
+import argparse
 from multiprocessing import Pool, cpu_count
+from types import SimpleNamespace
 from .extract import extract_data, extract_files, extract_surface
 from .fft_surface import dft_surface_data,fft_surface_data, source_fft
 from .utils import *
 from .source_localization_func import *
-import argparse
+
 
 
 def parse_arguments():
@@ -22,7 +24,8 @@ def parse_arguments():
     parser.add_argument("--reload", "-r", type=bool, default=False, help="Flag to reload the data and mesh from the working directory.")
     parser.add_argument("--option", "-o", type=int, default=1, help="extract options. 1 = sequential, 2 = skip every n files. Defaults to 1.")
     parser.add_argument("--nskip", "-n", type=int, default=1, help="Skip option. Defaults to 1.")
-    parser.add_argument("--max-file", "-m", type=int, default=5000, help="Maximum number of files to extract. Defaults to 5000.")
+    parser.add_argument("--min-file", "-mi", type=int, default=0, help="Minimum number of files to extract. Defaults to 0.")
+    parser.add_argument("--max-file", "-ma", type=int, default=5000, help="Maximum number of files to extract. Defaults to 5000.")
     parser.add_argument("--freq-select", "-fs", type=list, default=[1000,1500,2000,2500,3000], help="Frequency selection for source localization. Defaults to 1000 Hz.")
     parser.add_argument("--source-localization", "-sl", type=bool, default=False, help="Flag to perform source localization. Defaults to False.")
     parser.add_argument("--fft-method", "-fm", type=str, default="DFT", choices=['FFT', 'DFT'],help="Method for FFT computation. Defaults to 'DFT'.")
@@ -37,6 +40,11 @@ class SourceLocalization():
         self.mesh_file = os.path.join(args.mesh_dir, args.mesh_file)
         self.reload = args.reload
         self.fft_method = args.fft_method
+        self.option = SimpleNamespace()
+        self.option.option = args.option
+        self.option.nskip = args.nskip
+        self.option.min = args.min_file
+        self.option.max = args.max_file
         self.freq_select = args.freq_select
         if os.path.exists(self.mesh_file) == False:
             raise FileNotFoundError(f"Mesh file not found: {self.mesh_file}")
@@ -71,7 +79,7 @@ class SourceLocalization():
                     ntime += 1
         
         # Extracting the surface pressure data
-        self.surface_pressure_data,self.dt = extract_data(self.working_dir, self.FWH_data_dir, self.airfoil_mesh, dtype='float64', reload=self.reload)
+        self.surface_pressure_data,self.dt = extract_data(self.working_dir, self.FWH_data_dir, self.airfoil_mesh, dtype='float64', reload=self.reload, option=self.option)
         
         # Performing FFT on the surface pressure data
         if self.fft_method == 'DFT':
