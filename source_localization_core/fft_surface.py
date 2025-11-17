@@ -242,7 +242,7 @@ def source_fft(output_path: str, surface_mesh: str,data:str, data_fft: str, freq
         k = np.pi * 2 * freq / 340  # The wavenumber
     assert p_hat.shape[0] == num_nodes, 'The number of nodes in the pressure data and the mesh do not match'
     print('      The pressure data is %d (nodes) x %d (frequency bins)' % (p_hat.shape[0], p_hat.shape[1]))
-    print('      The frequency bins are from %d Hz to %d Hz' % (freq[1], freq[-1]))
+    print('      The frequency bins are from %d Hz to %d Hz' % (freq[1], np.max(freq)))
     print('      The frequency resolution is %d Hz' % (freq[2]-freq[1]))
     animated_base = Base()
     animated_base['0'] = Zone()
