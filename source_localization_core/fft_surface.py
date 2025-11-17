@@ -123,7 +123,7 @@ def compute_FFT_block(args):
     """
     block_data, dt, nchunk, block_number = args
     if block_number % 100 == 0:
-        print(f" Computing FFT for block {block_number}")
+        print(f"            Computing FFT for block {block_number}")
     
     n_nodes = block_data.shape[1]
     n_time = block_data.shape[0]
@@ -169,7 +169,7 @@ def fft_surface_data(surface_pressure_data: str, var: str, dt: float, reload: bo
     if os.path.exists(fft_file_path) and not reload:
         print(f"{fft_file_path} already exists. Skipping FFT computation.")
     else:
-        print("---->Computing FFT for surface pressure data.")
+        print("----> Computing FFT for surface pressure data.")
         # Load the pressure data from the HDF5 file.
         with h5py.File(surface_pressure_data, 'r') as h5f:
             data = h5f[var][:]
@@ -178,12 +178,12 @@ def fft_surface_data(surface_pressure_data: str, var: str, dt: float, reload: bo
                 data = np.swapaxes(data, 0, 1)
                 
         nt, nx = data.shape
-        print("The surface data is %d (nodes) x %d (timesteps)" % (nx, nt))
+        print("      The surface data is %d (nodes) x %d (timesteps)" % (nx, nt))
         
         # Determine number of blocks.
         nblocks = int(np.ceil(nx / block_size))
         num_processes = multiprocessing.cpu_count()
-        print("Processing %d blocks of up to %d nodes each using %d cores." % (nblocks, block_size, num_processes))
+        print("      Processing %d blocks of up to %d nodes each using %d cores." % (nblocks, block_size, num_processes))
         
         # Create list of arguments for each block.
         block_args = []
@@ -203,7 +203,8 @@ def fft_surface_data(surface_pressure_data: str, var: str, dt: float, reload: bo
         fft_all = np.concatenate([res[0] for res in results], axis=0)
         
         # Save the computed frequency and FFT data.
-        print("Saving FFT data to file:", fft_file_path)
+        print('      FFT calculation complete.')
+        print("\n----> Saving FFT data to file:", fft_file_path)
         with h5py.File(fft_file_path, 'w') as h5f_out:
             h5f_out.create_dataset('frequency', data=freq)
             h5f_out.create_dataset('pressure_fft', data=fft_all, dtype=complex)
@@ -219,19 +220,17 @@ def fft_surface_data(surface_pressure_data: str, var: str, dt: float, reload: bo
 
 
 def source_fft(output_path: str, surface_mesh: str,data:str, data_fft: str, freq_select: list = [500, 2000]):
-    text = 'Performing Surface Source Localization'
+    text = 'Performing Surface FFT Output for Visualization'
     print(f'\n{text:.^80}\n')
     # Loading the surface mesh
-    print('----> Loading the Airfoil Surface Mesh')
     reader = Reader('hdf_antares')
     reader['filename'] = surface_mesh
     base = reader.read()  # base is the Base object of the Antares API
-    base.show()
     # Extract the coordinates of the mesh nodes
     x,y,z = base[0][0]["x"],  base[0][0]["y"],  base[0][0]["z"]
     num_nodes = len(x)
     # Loading the Surface pressure data
-    print('\n----> Loading the Pressure Data: {0:s}'.format(data))
+    print('----> Loading the Pressure Data: {0:s}'.format(data))
     with h5py.File(data, 'r') as h5f:
         p_mean = h5f['mean_pressure'][:]
         p_rms = h5f['rms_pressure'][:]
@@ -242,9 +241,9 @@ def source_fft(output_path: str, surface_mesh: str,data:str, data_fft: str, freq
         freq = h5f['frequency'][:]
         k = np.pi * 2 * freq / 340  # The wavenumber
     assert p_hat.shape[0] == num_nodes, 'The number of nodes in the pressure data and the mesh do not match'
-    print('The pressure data is %d (nodes) x %d (frequency bins)' % (p_hat.shape[0], p_hat.shape[1]))
-    # Create an animated base for the results
-    print('\n----> Saving the surface fft data for visualization')
+    print('      The pressure data is %d (nodes) x %d (frequency bins)' % (p_hat.shape[0], p_hat.shape[1]))
+    print('      The frequency bins are from %d Hz to %d Hz' % (freq[1], freq[-1]))
+    print('      The frequency resolution is %d Hz' % (freq[2]-freq[1]))
     animated_base = Base()
     animated_base['0'] = Zone()
     animated_base[0].shared["x"],animated_base[0].shared["y"],animated_base[0].shared["z"] = x, y, z

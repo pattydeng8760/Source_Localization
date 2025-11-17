@@ -24,7 +24,7 @@ sound is generated where the incident nearfield pressure no longer satisfies the
 ### 1. Mathematical Foundation
 
 The method derives from the **Kirchhoff surface integral formulation** of the FW–H equation.
-Given the total surface pressure ($\hat{p}(\mathbf{x})$), the acoustically relevant component ($\hat{p}_S$) is defined by:
+Given the total surface pressure ($$\hat{p}(\mathbf{x})$$), the acoustically relevant component ($\hat{p}_S$) is defined by:
 
 $$
 \hat{p}_S(\mathbf{x}) = \frac{1}{2\pi} \text{P.V.} \int_{\partial V_B} e^{-ikr} (ikr + 1) \frac{\mathbf{e}_r \cdot \mathbf{n}}{r^2} \hat{p}(\boldsymbol{\xi}) dS(\boldsymbol{\xi})
@@ -40,7 +40,7 @@ $$
 q(\mathbf{x}) = \frac{1}{2} \hat{p}_S - \frac{1}{4\pi} \text{P.V.} \int_{\partial V_B} e^{-ikr} (ikr + 1) \frac{\mathbf{e}_r \cdot \mathbf{n}}{r^2} \hat{p}_S(\boldsymbol{\xi}) dS(\boldsymbol{\xi})
 $$
 
-This quantity ($q$) provides a **scalar, observer-independent map** of local sound generation intensity.
+This quantity ($$q$$) provides a **scalar, observer-independent map** of local sound generation intensity.
 
 ---
 

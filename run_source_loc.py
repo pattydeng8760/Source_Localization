@@ -5,19 +5,20 @@ from argparse import Namespace
 # make sure this path points to where your module lives locally!
 sys.path.insert(0, "./Source_Localization")
 
-from source_localization_core.source_localization import main
+from source_localization_core import main
 
 config = {
     "working_dir"       : "./",
-    "mesh_dir"          : "/project/rrg-plavoie/denggua1/BBDB_10AOA/MESH_ZONE_Apr24",
-    "mesh_file"         : "Bombardier_10AOA_Combine_Apr24.mesh.h5",
-    "FWH_data_dir"      : "/project/rrg-plavoie//denggua1/BBDB_10AOA/RUN_ZONE_Apr24/FWH_Airfoil/FWH_Data_TTG",
+    "mesh_dir"          : "/scratch/denggua1/Bombardier_LES/B_10AOA_U50_LES/MESH_Medium_Aug25",
+    "mesh_file"         : "Bombardier_10AOA_U50_Combine_Medium.mesh.h5",
+    "FWH_data_dir"      : "/scratch/denggua1/Bombardier_LES/B_10AOA_U50_LES/RUN_Medium/FWH_Airfoil/FWH_Data_TTG",
     "var"               : "pressure",
     "reload"            : False,
     "extract_FWH"       : False,
-    "freq_select"       : [1000, 2000,3000],
-    "source_localization": True,
+    "freq_select"       : [1000,2000,3000],
+    "source_localization": False,
     "fft_method"        : "FFT",
+    "surface_patches"  : ["Airfoil_Surface","Airfoil_Trailing_Edge","Airfoil_Side_LE","Airfoil_Side_Mid","Airfoil_Side_TE"],
 }
 
 args = Namespace(**config)

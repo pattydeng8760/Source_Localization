@@ -139,10 +139,10 @@ def replace_zeros_vectorized(data):
     mask = data == 0  # Boolean mask of zero entries
     
     if not np.any(mask):  # If no zeros are found, return early
-        print("No zeros detected. Skipping replacement.")
+        print("      No zeros detected. Skipping replacement.")
         return data  
 
-    print("Replacing zeros with nearest neighbor values...")
+    print("      Replacing zeros with nearest neighbor values...")
 
     # Forward fill: Copy last nonzero value forward
     for i in range(1, data.shape[1]):
@@ -151,7 +151,7 @@ def replace_zeros_vectorized(data):
             replaced_nodes = np.where(update_mask)[0]  # Indices of affected nodes
             replaced_values = data[replaced_nodes, i - 1]
             for node, value in zip(replaced_nodes, replaced_values):
-                print(f"Node {node}: Zero replaced with forward value {value}")
+                print(f"            Node {node}: Zero replaced with forward value {value}")
         data[:, i] = np.where(update_mask, data[:, i - 1], data[:, i])
 
     # Backward fill: Copy first nonzero value backward

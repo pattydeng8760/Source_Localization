@@ -535,10 +535,21 @@ def estimate_computation_time(nodes, n_target_freq, n_workers=None):
     return estimated_time
 
 
-def compute_source_localization(whole_mesh, airfoil_mesh, surface_pressure_fft_data, freq_select):
+def compute_source_localization(whole_mesh:str,input_surface:list ,airfoil_mesh:str, surface_pressure_fft_data:str, freq_select:list):
     """
-    Run the source localization method.
-    This is a placeholder for any additional logic that might be needed.
+    Main function to compute source localization based on surface pressure data.
+    Parameters:
+    -----------
+    whole_mesh : str
+        Path to the whole mesh file
+    input_surface : list
+        List of surface names for extraction of the normals
+    airfoil_mesh : str
+        Path to the airfoil surface mesh file
+    surface_pressure_fft_data : str
+        Path to the surface pressure FFT data file
+    freq_select : list
+        List of target frequencies to compute
     """
     text = 'Performing Surface Source Localization'
     print(f'\n{text:.^80}\n')
@@ -564,15 +575,26 @@ def compute_source_localization(whole_mesh, airfoil_mesh, surface_pressure_fft_d
     
     print('\n----> Loading the Airfoil Normal Vector')
     # Extracting the normal vector from the base
-    faces = [6, 8, 9, 10, 11]  # The group index for the faces of the mesh on the airfoil
     shape = []                # Initializing an intermediate variable for the size of each group
     normals = []              # Initializing the normal vector
     
+    # Extract normal data from whole mesh and the faces corresponding to input surfaces
     with h5py.File(whole_mesh, 'r') as h5_file:
         data = h5_file['Boundary/bnode->normal'][:]
+        with h5py.File(mesh_file, 'r') as h5_file:
+            # Load patch labels as a list of Python strings
+            labels = [label.decode('utf-8').strip() 
+            for label in h5_file['Boundary']['PatchLabels'][()]]
+            # Get 1-based indices for each input surface
+            faces = [labels.index(name) + 1 for name in input_surface]
+        
     data = np.reshape(data, (-1, 3))
     
-    for i in range(1, 12):
+    with h5py.File(mesh_file, 'r') as f:
+        patch_group = f["Patch"]
+        num_patches = len(patch_group.keys())
+    
+    for i in range(1, num_patches+1):
         group = 'Patch/' + str(i) + '/Coordinates/x'
         with h5py.File(whole_mesh, 'r') as h5_file:
             shape.append(np.shape(h5_file[group][:])[0])
@@ -601,29 +623,19 @@ def compute_source_localization(whole_mesh, airfoil_mesh, surface_pressure_fft_d
     # The surface area from the surface mesh
     print('\n----> Computing the airfoil surface area')
     with h5py.File(airfoil_mesh, 'r') as h5_file:
-        # 1) Define side-length in meters:
-        #a = 4.2e-4  # 4.2 mm = 4.2e-3 m
-        # 2) Compute area of one equilateral triangle:
-        #area_per_element = (np.sqrt(3) / 4) * a**2   # [m^2]
-        # 3) Build a 1D array so that each triangle i has the same area:
-        #    We assume `p_hat` is already defined (length = number of elements).
-        #num_elems = p_hat.shape[0]
-        #surface_area = np.full(num_elems, area_per_element)
         surface_volume = h5_file['/0000/instants/0000/variables/VD_volume_node'][:]
         surface_area = surface_volume**(2/3)
         # 4) Check sizes match:
-        assert surface_area.shape[0] == p_hat.shape[0], (
-            "     The number of elements in p_hat must match the number of area entries"
-        )
+        assert surface_area.shape[0] == p_hat.shape[0], ("     The number of elements in p_hat must match the number of area entries")
     
     print("     The surface area of the airfoil is %f m^2" % np.sum(surface_area))
     
     # Debug print to check shapes
-    print(f"\nFINAL Debug - Array shapes:")
-    print(f"  zeta shape: {zeta.shape} (should be (nodes, 3))")
-    print(f"  normals shape: {normals.shape} (should be (nodes, 3))")
-    print(f"  p_hat shape: {p_hat.shape} (should be (nodes, nfreq))")
-    print(f"  surface_area shape: {surface_area.shape} (should be (nodes,))")
+    print(f"\n----> FINAL Check - Array shapes:")
+    print(f"      zeta shape: {zeta.shape} (should be (nodes, 3))")
+    print(f"      normals shape: {normals.shape} (should be (nodes, 3))")
+    print(f"      p_hat shape: {p_hat.shape} (should be (nodes, nfreq))")
+    print(f"      surface_area shape: {surface_area.shape} (should be (nodes,))")
     
     # Verify all shapes are consistent
     nodes = zeta.shape[0]
@@ -632,8 +644,8 @@ def compute_source_localization(whole_mesh, airfoil_mesh, surface_pressure_fft_d
     assert p_hat.shape[0] == nodes, f"p_hat nodes {p_hat.shape[0]} != {nodes}"
     assert surface_area.shape[0] == nodes, f"surface_area nodes {surface_area.shape[0]} != {nodes}"
     
-    print("✅ All array shapes are consistent!")
-    print("Starting computation...")
+    print(" All array shapes are consistent!")
+    print("\n\n----> Starting computation...")
     
     estimate_computation_time(np.shape(p_hat)[0], len(freq_select))
     
@@ -667,7 +679,7 @@ def compute_source_localization(whole_mesh, airfoil_mesh, surface_pressure_fft_d
     return p_hat_s, target_indices
 
 
-def output_source_localization_corrected(airfoil_mesh, p_hat_s, surface_pressure_fft_data, 
+def output_source_localization(airfoil_mesh, p_hat_s, surface_pressure_fft_data, 
                                         freq_select, target_freq_indices, output_path):
     """
     Corrected function to output source localization results.
@@ -694,10 +706,10 @@ def output_source_localization_corrected(airfoil_mesh, p_hat_s, surface_pressure
         freq_all = h5f['frequency'][:]       # Shape: (nfreq_all,)
     
     print('\n----> Saving the source localization data')
-    print(f"Original pressure data shape: {p_hat_orig.shape}")
-    print(f"Acoustic pressure data shape: {p_hat_s.shape}")
-    print(f"Target frequencies: {freq_select}")
-    print(f"Target frequency indices: {target_freq_indices}")
+    print(f"      Original pressure data shape: {p_hat_orig.shape}")
+    print(f"      Acoustic pressure data shape: {p_hat_s.shape}")
+    print(f"      Target frequencies: {freq_select}")
+    print(f"      Target frequency indices: {target_freq_indices}")
     
     # Load mesh geometry
     reader = Reader('hdf_antares')
@@ -721,7 +733,6 @@ def output_source_localization_corrected(airfoil_mesh, p_hat_s, surface_pressure
         print(f"Processing frequency {k+1}/{len(freq_select)}: {target_freq:.1f} Hz")
         
         # Extract data for current frequency
-        # CORRECTED: p_hat_s has shape (n_target_freq, nodes), so use [k, :]
         p_s_current = p_hat_s[k, :]  # Shape: (nodes,)
         
         # CORRECTED: Extract original pressure for the corresponding frequency
