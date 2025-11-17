@@ -120,7 +120,7 @@ def compute_acoustic_surface_pressure_parallel(p_hat, zeta, freq_all, normal, ar
     if chunk_size is None:
         chunk_size = max(100, nodes // (n_workers * 2))  # Larger chunks for single frequency
     
-    logging.info(f"    Creating observer chunks with chunk_size = {chunk_size}")
+    logging.info(f"    Creating observer chunks with chunk_size = {chunk_size} ")
     
     # Extract p_hat data for target frequencies only
     p_hat_target = p_hat[target_freq_indices, :]
@@ -252,7 +252,10 @@ def compute_source_localization(whole_mesh:str,input_surface:list ,airfoil_mesh:
     # The surface area from the surface mesh
     print('\n----> Computing the airfoil surface area')
     with h5py.File(airfoil_mesh, 'r') as h5_file:
-        surface_volume = h5_file['/0000/instants/0000/variables/VD_volume_node'][:]
+        if len(input_surface) == 1:
+            surface_volume = h5_file[f'/{input_surface[0]}/instants/0000/variables/VD_volume_node'][:]
+        else: 
+            surface_volume = h5_file['/0000/instants/0000/variables/VD_volume_node'][:]
         surface_area = surface_volume**(2/3)
         # 4) Check sizes match:
         assert surface_area.shape[0] == p_hat.shape[0], ("     The number of elements in p_hat must match the number of area entries")
