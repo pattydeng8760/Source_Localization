@@ -30,6 +30,7 @@ def parse_arguments():
     parser.add_argument("--source-localization", "-sl", type=bool, default=False, help="Flag to perform source localization. Defaults to False.")
     parser.add_argument("--fft-method", "-fm", type=str, default="DFT", choices=['FFT', 'DFT'],help="Method for FFT computation. Defaults to 'DFT'.")
     parser.add_argument("--surface-patches", "-sp", type=list, default=['Airfoil_Surface'], help="List of surface patches to include in the analysis. Defaults to all patches.")
+    parser.add_argument("--verbose", "-vb",action="store_true", help="Flag to enable verbose output. Defaults to True.")
 
 class SourceLocalization():
     def __init__(self, args):
@@ -92,7 +93,7 @@ class SourceLocalization():
         for idx, freq in enumerate(self.freq_select):
             # Performing Source Localization for selected frequencies with iterateive output
             p_hat_s, target_indices = compute_source_localization(self.mesh_file, self.surface_patches, 
-                                        self.airfoil_mesh, self.surface_pressure_fft_data, [freq])
+                                        self.airfoil_mesh, self.surface_pressure_fft_data, [freq], self.args.verbose)
             # Outputting the Source Localization results
             output_source_localization(self.airfoil_mesh, p_hat_s, self.surface_pressure_fft_data, 
                                         [freq], target_indices, self.working_dir)

@@ -20,7 +20,8 @@ def compute_acoustic_surface_pressure_parallel(p_hat, zeta, freq_all, normal, ar
                                              target_frequencies,
                                              speed_of_sound=343.0, 
                                              n_workers=None,
-                                             chunk_size=None):
+                                             chunk_size=None,
+                                             verbose=False):
     """
     Compute acoustically active surface pressure p̂_S with parallel processing for specific frequencies.
     
@@ -48,7 +49,8 @@ def compute_acoustic_surface_pressure_parallel(p_hat, zeta, freq_all, normal, ar
         Number of worker processes. Default: number of CPU cores
     chunk_size : int, optional
         Size of chunks for processing. Default: auto-calculated
-        
+    verbose : bool, optional
+        Enable verbose logging. Default: False
     Returns:
     --------
     p_hat_s : np.ndarray, shape (len(target_frequencies), nodes)
@@ -118,7 +120,7 @@ def compute_acoustic_surface_pressure_parallel(p_hat, zeta, freq_all, normal, ar
     
     # Parallelize over observer points
     if chunk_size is None:
-        chunk_size = max(100, nodes // (n_workers ))  # Larger chunks for single frequency
+        chunk_size = max(100, nodes // (n_workers))  # Larger chunks for single frequency
     
     logging.info(f"    Creating observer chunks with chunk_size = {chunk_size} ")
     
@@ -133,7 +135,7 @@ def compute_acoustic_surface_pressure_parallel(p_hat, zeta, freq_all, normal, ar
         end_idx = min(i + chunk_size, nodes)
         obs_indices = list(range(i, end_idx))
         # Only the first chunk / worker logs
-        enable_logging = (chunk_idx == 0)
+        enable_logging = (chunk_idx == 0) if not verbose else True
         args = (obs_indices, zeta, normal, area, p_hat_target, target_freq_values, speed_of_sound, log_file, enable_logging)
         obs_chunks.append((i, args))
     
@@ -167,7 +169,7 @@ def compute_acoustic_surface_pressure_parallel(p_hat, zeta, freq_all, normal, ar
     return p_hat_s, target_freq_indices
 
 
-def compute_source_localization(whole_mesh:str,input_surface:list ,airfoil_mesh:str, surface_pressure_fft_data:str, freq_select:list):
+def compute_source_localization(whole_mesh:str,input_surface:list ,airfoil_mesh:str, surface_pressure_fft_data:str, freq_select:list, verbose:bool=False):
     """
     Main function to compute source localization based on surface pressure data.
     Parameters:
@@ -185,7 +187,7 @@ def compute_source_localization(whole_mesh:str,input_surface:list ,airfoil_mesh:
     """
     text = 'Performing Surface Source Localization'
     print(f'\n{text:.^80}\n')
-    print('----> Performing Source Localization for frequency: {0:s} Hz'.format(str(freq_select[0])))
+    print(' Performing Source Localization for frequency: {0:s} Hz'.format(str(freq_select[0])))
     
     # Loading the surface mesh
     print('----> Loading the Airfoil Surface Mesh')
@@ -279,7 +281,7 @@ def compute_source_localization(whole_mesh:str,input_surface:list ,airfoil_mesh:
     assert surface_area.shape[0] == nodes, f"surface_area nodes {surface_area.shape[0]} != {nodes}"
     
     print("      All array shapes are consistent!")
-    print("\n\n----> Starting computation...")
+    print("\n----> Starting computation...")
     
     #estimate_computation_time(np.shape(p_hat)[0], len(freq_select))
     
@@ -288,10 +290,11 @@ def compute_source_localization(whole_mesh:str,input_surface:list ,airfoil_mesh:
         p_hat, zeta, freq, normals, surface_area,
         target_frequencies=freq_select,
         n_workers=mp.cpu_count(),
-        chunk_size=None
+        chunk_size=None,
+        verbose=verbose
     )
     
-    print("----> Computation complete!")
+    print("\n----> Computation complete!")
     print(f"      Output shape: {p_hat_s.shape}")
     print(f"      Target frequency indices in original array: {target_indices}")
     
@@ -303,7 +306,7 @@ def compute_source_localization(whole_mesh:str,input_surface:list ,airfoil_mesh:
         
         print(f"      Frequency {freq_val} Hz: Max reduction = {reduction:.1f}")
     
-    print('----> Compelted Source Localization for frequency: {0:s} Hz'.format(str(freq_select)))
+    print('\n----> Compelted Source Localization for frequency: {0:s} Hz'.format(str(freq_select)))
     return p_hat_s, target_indices
 
 
