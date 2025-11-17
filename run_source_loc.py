@@ -16,9 +16,9 @@ config = {
     "reload"            : False,
     "extract_FWH"       : False,
     "freq_select"       : [1000,2000,3000],
-    "source_localization": False,
+    "source_localization": True,
     "fft_method"        : "FFT",
-    "surface_patches"  : ["Airfoil_Surface","Airfoil_Trailing_Edge","Airfoil_Side_LE","Airfoil_Side_Mid","Airfoil_Side_TE"],
+    "surface_patches"   : ["Airfoil_Surface","Airfoil_Trailing_Edge","Airfoil_Side_LE","Airfoil_Side_Mid","Airfoil_Side_TE"],
 }
 
 args = Namespace(**config)

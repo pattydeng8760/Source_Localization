@@ -559,19 +559,18 @@ def compute_source_localization(whole_mesh:str,input_surface:list ,airfoil_mesh:
     reader = Reader('hdf_antares')
     reader['filename'] = airfoil_mesh
     base = reader.read()  # b is the Base object of the Antares API
-    base.show()
     
     # Create zeta with correct shape (nodes, 3) then transpose to (3, nodes)
     x_coords = base[0][0]['x']
     y_coords = base[0][0]['y'] 
     z_coords = base[0][0]['z']
     
-    print(f"Coordinate array shapes: x={x_coords.shape}, y={y_coords.shape}, z={z_coords.shape}")
+    print(f"      Coordinate array shapes: x={x_coords.shape}, y={y_coords.shape}, z={z_coords.shape}")
     
     # Create zeta with shape (nodes, 3)
     zeta = np.column_stack([x_coords, y_coords, z_coords])
     
-    print(f"zeta shape after creation: {zeta.shape} (should be (nodes, 3))")
+    print(f"      zeta shape after creation: {zeta.shape} (should be (nodes, 3))")
     
     print('\n----> Loading the Airfoil Normal Vector')
     # Extracting the normal vector from the base
@@ -581,16 +580,15 @@ def compute_source_localization(whole_mesh:str,input_surface:list ,airfoil_mesh:
     # Extract normal data from whole mesh and the faces corresponding to input surfaces
     with h5py.File(whole_mesh, 'r') as h5_file:
         data = h5_file['Boundary/bnode->normal'][:]
-        with h5py.File(mesh_file, 'r') as h5_file:
-            # Load patch labels as a list of Python strings
-            labels = [label.decode('utf-8').strip() 
-            for label in h5_file['Boundary']['PatchLabels'][()]]
-            # Get 1-based indices for each input surface
-            faces = [labels.index(name) + 1 for name in input_surface]
+        # Load patch labels as a list of Python strings
+        labels = [label.decode('utf-8').strip() 
+        for label in h5_file['Boundary']['PatchLabels'][()]]
+        # Get 1-based indices for each input surface
+        faces = [labels.index(name) + 1 for name in input_surface]
         
     data = np.reshape(data, (-1, 3))
     
-    with h5py.File(mesh_file, 'r') as f:
+    with h5py.File(whole_mesh, 'r') as f:
         patch_group = f["Patch"]
         num_patches = len(patch_group.keys())
     
@@ -608,7 +606,7 @@ def compute_source_localization(whole_mesh:str,input_surface:list ,airfoil_mesh:
     normals = np.concatenate(normals, axis=0) if normals else np.array([])
     normals = normals / np.linalg.norm(normals, axis=1, keepdims=True)
     
-    print(f"normals shape after processing: {normals.shape} (should be (nodes, 3))")
+    print(f"      normals shape after processing: {normals.shape} (should be (nodes, 3))")
     
     # Loading the Fourier Transform data
     print('\n----> Loading the Fourier Transform of the Pressure Data: {0:s}'.format(surface_pressure_fft_data))
@@ -644,7 +642,7 @@ def compute_source_localization(whole_mesh:str,input_surface:list ,airfoil_mesh:
     assert p_hat.shape[0] == nodes, f"p_hat nodes {p_hat.shape[0]} != {nodes}"
     assert surface_area.shape[0] == nodes, f"surface_area nodes {surface_area.shape[0]} != {nodes}"
     
-    print(" All array shapes are consistent!")
+    print("      All array shapes are consistent!")
     print("\n\n----> Starting computation...")
     
     estimate_computation_time(np.shape(p_hat)[0], len(freq_select))
