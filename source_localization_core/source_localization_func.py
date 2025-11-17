@@ -118,7 +118,7 @@ def compute_acoustic_surface_pressure_parallel(p_hat, zeta, freq_all, normal, ar
     
     # Parallelize over observer points
     if chunk_size is None:
-        chunk_size = max(100, nodes // (n_workers * 2))  # Larger chunks for single frequency
+        chunk_size = max(100, nodes // (n_workers ))  # Larger chunks for single frequency
     
     logging.info(f"    Creating observer chunks with chunk_size = {chunk_size} ")
     
