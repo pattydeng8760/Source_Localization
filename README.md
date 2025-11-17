@@ -25,7 +25,7 @@ sound is generated where the incident nearfield pressure no longer satisfies the
 
 The method derives from the **Kirchhoff surface integral formulation** of the Ffowcs Williams–Hawkings (FW–H) equation, simplified for low Mach number flow with the assumption that the pressure gradient normal to the surface is negligible ($\partial\hat{p}/\partial n \approx 0$).
 
-Given the total surface pressure ($\hat{p}(\mathbf{x})$) in the frequency domain, the governing **boundary integral equation** for an observer on the surface ($\mathbf{x} \in \partial V_B$) is (Eq. 10 in the article):
+Given the total surface pressure ($$\hat{p}(\mathbf{x})$$) in the frequency domain, the governing **boundary integral equation** for an observer on the surface ($\mathbf{x} \in \partial V_B$) is (Eq. 10 in the article):
 
 $$
 \hat{p}(\mathbf{x}) = 2\hat{p}_{f}(\mathbf{x}) + \frac{1}{2\pi} \oint_{\partial V_B} \exp(-ikr) (ikr + 1) \frac{\mathbf{e}_r \cdot \mathbf{n}}{r^2} \hat{p}(\boldsymbol{\xi}) dS(\boldsymbol{\xi})
@@ -38,19 +38,19 @@ Where:
 * $\mathbf{e}_r$ is the **unit vector** from the source point $\boldsymbol{\xi}$ to the observer point $\mathbf{x}$.
 * $\mathbf{n}$ is the **local surface normal**.
 
-The **Acoustic Surface Pressure** ($\hat{p}_{S}(\mathbf{x})$) is defined by rearranging the equation, based on the physical hypothesis of the mirror principle (Eq. 16 in the article):
+The **Acoustic Surface Pressure** ($$\hat{p}_{S}(\mathbf{x})$$) is defined by rearranging the equation, based on the physical hypothesis of the mirror principle (Eq. 16 in the article):
 
 $$
 \hat{p}_{S}(\mathbf{x}) = \hat{p}(\mathbf{x}) - 2\hat{p}_{f}(\mathbf{x})
 $$
 
-This quantity, $\hat{p}_{S}(\mathbf{x})$, which is also called the **Surface Source Quantity** ($\hat{q}$ in the article), is mathematically equivalent to the **diffraction integral**:
+This quantity, $$\hat{p}_{s}(\mathbf{x})$$, which is also called the **Surface Source Quantity** ($\hat{q}$ in the article), is mathematically equivalent to the **diffraction integral**:
 
 $$
 \hat{p}_{S}(\mathbf{x}) = \frac{1}{2\pi} \oint_{\partial V_B} \exp(-ikr) (ikr + 1) \frac{\mathbf{e}_r \cdot \mathbf{n}}{r^2} \hat{p}(\boldsymbol{\xi}) dS(\boldsymbol{\xi})
 $$
 
-This quantity ($\hat{p}_S(\mathbf{x})$) provides a **scalar, observer-independent map** of the local sound generation intensity, as it isolates the acoustically active component—the part of the surface pressure relevant for sound generation.
+This quantity ($$\hat{p}_S(\mathbf{x})$$) provides a **scalar, observer-independent map** of the local sound generation intensity, as it isolates the acoustically active component—the part of the surface pressure relevant for sound generation.
 
 ---
 
@@ -131,15 +131,6 @@ This computes:
 ### **3. Visualization**
 
 Use paraview to view the results in .h5 format 
-
----
-
-## **Validation and Comparison**
-
-The implementation reproduces the key findings of Delfs & Ruck (2024):
-
-- The **acoustic surface pressure** \( \hat{p}_S \) isolates regions as dominant sound sources.  
-- Far-field spectra computed with \( \hat{p}_f \) and with the original \( \hat{p} \) are nearly identical, confirming physical consistency.
 
 ---
 
