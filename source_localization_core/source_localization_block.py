@@ -1,13 +1,179 @@
 """
-Memory-efficient airframe noise source localization using node blocking approach
+worker functions for source localization method based on surface pressure from Scale-Resolving Simulations as per AIAA-2024-3007 by Jan Delfs.
 """
 
 import numpy as np
-from multiprocessing import Pool, cpu_count
+import logging
 import h5py
-import gc
-from antares import Reader, Writer, Base, Zone, Instant
 import os
+from numba import jit, prange
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+import multiprocessing as mp
+import warnings
+from antares import Reader, Base, Zone, Instant, Writer
+from .source_localization_utils import _setup_worker_logger
+# Suppress numba warnings for cleaner output
+warnings.filterwarnings('ignore')
+
+@jit(nopython=True, parallel=True, fastmath=True)
+def _compute_surface_integral_numba(observer_pos, zeta, source_normals, p_current, area, k):
+    """
+    Numba-compiled function to compute surface integral for one observer point.
+    
+    Delfs formulatin for acoustically active surface pressure
+    p̂_S(x) = (1/2π) ∫ [exp(-ikr)(ikr + 1) * (e_r · n_ξ) / r²] * p̂(ξ) dS(ξ)
+    
+    where:
+    - x = observer position
+    - ξ = source position  
+    - n_ξ = source normal (normal at source location ξ)
+    - e_r = (x - ξ)/|x - ξ| = unit vector from source to observer
+    - exp(-ikr) = propagation term
+    """
+    nodes = zeta.shape[1]
+    surface_integral = 0.0 + 0.0j
+    
+    for src_idx in prange(nodes):
+        # Distance vector: r_vec = observer - source
+        r_vec_x = observer_pos[0] - zeta[0, src_idx]
+        r_vec_y = observer_pos[1] - zeta[1, src_idx]
+        r_vec_z = observer_pos[2] - zeta[2, src_idx]
+        
+        r = np.sqrt(r_vec_x**2 + r_vec_y**2 + r_vec_z**2)
+        
+        if r < 1e-12:  # Skip singular point
+            continue
+            
+        # Unit vector from source to observer: e_r = (observer - source) / |observer - source|
+        e_r_x = r_vec_x / r
+        e_r_y = r_vec_y / r
+        e_r_z = r_vec_z / r
+        
+        # Dot product of unit distance vector with SOURCE normal at location ξ
+        er_dot_n = (e_r_x * source_normals[0, src_idx] + 
+                   e_r_y * source_normals[1, src_idx] + 
+                   e_r_z * source_normals[2, src_idx])
+        
+        # Green's function with NEGATIVE exp(-ikr)
+        kr = k * r
+        exp_neg_ikr = np.exp(-1j * kr)  # NEGATIVE sign!!!
+        green_factor = exp_neg_ikr * (1j * kr + 1) * er_dot_n / (r * r)
+        
+        # Surface element contribution
+        element_contrib = green_factor * p_current[src_idx] * area[src_idx]
+        surface_integral += element_contrib
+    
+    return surface_integral / (2 * np.pi)
+
+
+def _compute_frequency_chunk(args):
+    """
+    Worker function to compute p_hat_s for a chunk of frequencies.
+    This enables multiprocessing parallelization.
+    """
+    freq_indices, freq_values, p_hat_chunk, zeta, normal, area, speed_of_sound = args
+    _setup_worker_logger(log_file)
+    nfreq_chunk = len(freq_indices)
+    nodes = zeta.shape[1]
+    p_S_chunk = np.zeros((nfreq_chunk, nodes), dtype=complex)
+    
+    # Get process ID for unique identification
+    import os
+    pid = os.getpid()
+    
+    print(f"[Worker {pid}] Starting frequency chunk: {len(freq_values)} frequencies")
+    print(f"[Worker {pid}] Frequency range: {freq_values[0]:.1f} - {freq_values[-1]:.1f} Hz")
+    
+    for i, (f_idx, f) in enumerate(zip(freq_indices, freq_values)):
+        print(f"[Worker {pid}] Processing frequency {i+1}/{nfreq_chunk}: {f:.1f} Hz")
+        
+        if f == 0:
+            p_S_chunk[i, :] = 0.0
+            continue
+            
+        k = 2 * np.pi * f / speed_of_sound
+        p_current = p_hat_chunk[i, :]
+        
+        # Process each observer point with progress tracking
+        progress_step = max(1, nodes // 10)  # Print every 10% of nodes
+        for obs_idx in range(nodes):
+            if obs_idx % progress_step == 0:
+                progress = (obs_idx / nodes) * 100
+                print(f"[Worker {pid}] Freq {f:.1f} Hz: {progress:.0f}% complete ({obs_idx}/{nodes} nodes)")
+                
+            observer_pos = zeta[:, obs_idx].astype(np.float64)
+            
+            # Updated function call with source normals (not observer normal)
+            p_S_chunk[i, obs_idx] = _compute_surface_integral_numba(
+                observer_pos, zeta.astype(np.float64), normal.astype(np.float64),
+                p_current.astype(np.complex128), area.astype(np.float64), k
+            )
+        
+        print(f"[Worker {pid}] Completed frequency {f:.1f} Hz")
+    
+    print(f"[Worker {pid}] Frequency chunk COMPLETED!")
+    return freq_indices, p_S_chunk
+
+
+def _compute_observer_chunk(args):
+    """
+    Worker function to compute p_hat_s for a chunk of observer points.
+    Can be more memory efficient for very large meshes.
+    """
+    obs_indices, zeta, normal, area, p_hat, freq, speed_of_sound, log_file, enable_logging = args
+    nfreq = p_hat.shape[0]
+    n_obs = len(obs_indices)
+    p_S_chunk = np.zeros((nfreq, n_obs), dtype=complex)
+    
+    # Get process ID for unique identification
+    import os
+    pid = os.getpid()
+    if enable_logging:
+        _setup_worker_logger(log_file)
+        logger = logging.getLogger(__name__)
+    else:
+        logger = None
+    
+    logging.info(f"[Worker {pid}] Starting observer chunk: {n_obs} observer points") if enable_logging else None
+    logging.info(f"[Worker {pid}] Observer range: {obs_indices[0]} - {obs_indices[-1]}") if enable_logging else None
+    
+    for f_idx, f in enumerate(freq):
+        logging.info(f"[Worker {pid}] Processing frequency {f_idx+1}/{nfreq}: {f:.1f} Hz") if enable_logging else None
+        
+        if f == 0:
+            p_S_chunk[f_idx, :] = 0.0
+            continue
+            
+        k = 2 * np.pi * f / speed_of_sound
+        p_current = p_hat[f_idx, :]
+        
+        # Process each observer point with progress tracking
+        progress_step = max(1, n_obs // 10)  # Print every 10% of observers
+        for i, obs_idx in enumerate(obs_indices):
+            if i % progress_step == 0:
+                progress = (i / n_obs) * 100
+                logging.info(f"[Worker {pid}] Freq {f:.1f} Hz: {progress:.0f}% complete ({i}/{n_obs} observers)") if enable_logging else None
+                
+            observer_pos = zeta[:, obs_idx].astype(np.float64)
+            
+            # Updated function call with source normals
+            p_S_chunk[f_idx, i] = _compute_surface_integral_numba(
+                observer_pos, zeta.astype(np.float64), normal.astype(np.float64),
+                p_current.astype(np.complex128), area.astype(np.float64), k
+            )
+        
+        logging.info(f"[Worker {pid}] Completed frequency {f:.1f} Hz") if enable_logging else None
+    
+    logging.info(f"[Worker {pid}] Observer chunk COMPLETED!") if enable_logging else None
+    return obs_indices, p_S_chunk
+
+#==================================================================================================================
+#==================================================================================================================
+#==================================================================================================================
+# These functions are deprecated but kept for reference
+#==================================================================================================================
+#==================================================================================================================
+#==================================================================================================================
 
 def compute_block_source_localization(args):
     """

@@ -1,7 +1,7 @@
 from .extract import extract_data, extract_files, extract_surface
 from .fft_surface import dft_surface_data,fft_surface_data, source_fft
 from .utils import init_logging_from_cut
-from .source_localization import SourceLocalization, parse_arguments
+from .SourceLocalization import SourceLocalization, parse_arguments
 
 def main(args=None):
     # Parse CLI args

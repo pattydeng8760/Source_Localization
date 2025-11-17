@@ -5,7 +5,6 @@ from .extract import extract_data, extract_files, extract_surface
 from .fft_surface import dft_surface_data,fft_surface_data, source_fft
 from .utils import *
 from .source_localization_func import *
-from .source_localization_func_rev import *
 import argparse
 
 
@@ -82,22 +81,12 @@ class SourceLocalization():
         source_fft(self.working_dir, self.airfoil_mesh, self.surface_pressure_data, self.surface_pressure_fft_data, self.freq_select)
     
     def run_source_localization(self):
-        p_hat_s, target_indices = compute_source_localization(self.mesh_file, self.surface_patches, self.airfoil_mesh, self.surface_pressure_fft_data, self.freq_select)
-        output_source_localization(self.airfoil_mesh, p_hat_s, self.surface_pressure_fft_data, 
-                                        self.freq_select, target_indices, self.working_dir)
+        for idx, freq in enumerate(self.freq_select):
+            # Performing Source Localization for selected frequencies with iterateive output
+            p_hat_s, target_indices = compute_source_localization(self.mesh_file, self.surface_patches, 
+                                        self.airfoil_mesh, self.surface_pressure_fft_data, [freq])
+            # Outputting the Source Localization results
+            output_source_localization(self.airfoil_mesh, p_hat_s, self.surface_pressure_fft_data, 
+                                        [freq], target_indices, self.working_dir)
         text = "Source Localization Complete"
         print(f'\n{text:=^100}\n')
-        # # Memory-efficient computation
-        # nblocks = 1000  # Adjust based on available memory
-        # nproc = cpu_count()     # Adjust based on available CPUs
-        
-        # p_hat_s, target_indices = compute_source_localization_blocked(
-        #     self.mesh_file, self.airfoil_mesh, self.surface_pressure_fft_data,
-        #     self.freq_select, nblocks=nblocks, nproc=nproc
-        # )
-        
-        # # Save results incrementally
-        # save_results_incrementally(
-        #     self.airfoil_mesh, p_hat_s, self.surface_pressure_fft_data,
-        #     self.freq_select, target_indices, self.working_dir
-        # )
