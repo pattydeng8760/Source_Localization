@@ -1,0 +1,99 @@
+=== Profiling started at Fri 28 Nov 2025 02:42:25 AM EST ===
+Using nodes=25000, nfreq=512, ntarget=32
+
+=== RANKS=192 THREADS=1 ===
+[INFO] MPI ranks (env) = 192
+[INFO] OMP_NUM_THREADS = 1
+[INFO] nodes=25000, nfreq_all=512, n_target_freq=32
+[TIMING] seconds=233.779767 ranks=192 threads=1
+
+
+
+=== RANKS=96 THREADS=2 ===
+[INFO] MPI ranks (env) = 96
+[INFO] OMP_NUM_THREADS = 2
+[INFO] nodes=25000, nfreq_all=512, n_target_freq=32
+[TIMING] seconds=320.874319 ranks=96 threads=2
+
+
+
+=== RANKS=48 THREADS=4 ===
+[INFO] MPI ranks (env) = 48
+[INFO] OMP_NUM_THREADS = 4
+[INFO] nodes=25000, nfreq_all=512, n_target_freq=32
+[TIMING] seconds=567.082366 ranks=48 threads=4
+
+
+
+=== RANKS=32 THREADS=6 ===
+[INFO] MPI ranks (env) = 32
+[INFO] OMP_NUM_THREADS = 6
+[INFO] nodes=25000, nfreq_all=512, n_target_freq=32
+[TIMING] seconds=280.402712 ranks=32 threads=6
+
+
+
+=== RANKS=24 THREADS=8 ===
+[INFO] MPI ranks (env) = 24
+[INFO] OMP_NUM_THREADS = 8
+[INFO] nodes=25000, nfreq_all=512, n_target_freq=32
+[TIMING] seconds=45.339726 ranks=24 threads=8
+
+
+
+=== RANKS=16 THREADS=12 ===
+[INFO] MPI ranks (env) = 16
+[INFO] OMP_NUM_THREADS = 12
+[INFO] nodes=25000, nfreq_all=512, n_target_freq=32
+[TIMING] seconds=15.057171 ranks=16 threads=12
+
+
+
+=== RANKS=12 THREADS=16 ===
+[INFO] MPI ranks (env) = 12
+[INFO] OMP_NUM_THREADS = 16
+[INFO] nodes=25000, nfreq_all=512, n_target_freq=32
+[TIMING] seconds=19.813910 ranks=12 threads=16
+
+
+
+=== RANKS=8 THREADS=24 ===
+[INFO] MPI ranks (env) = 8
+[INFO] OMP_NUM_THREADS = 24
+[INFO] nodes=25000, nfreq_all=512, n_target_freq=32
+[TIMING] seconds=6.319737 ranks=8 threads=24
+
+
+
+=== RANKS=6 THREADS=32 ===
+[INFO] MPI ranks (env) = 6
+[INFO] OMP_NUM_THREADS = 32
+[INFO] nodes=25000, nfreq_all=512, n_target_freq=32
+[TIMING] seconds=14.763281 ranks=6 threads=32
+
+
+
+=== RANKS=4 THREADS=48 ===
+[INFO] MPI ranks (env) = 4
+[INFO] OMP_NUM_THREADS = 48
+[INFO] nodes=25000, nfreq_all=512, n_target_freq=32
+[TIMING] seconds=21.475486 ranks=4 threads=48
+
+
+
+=== RANKS=2 THREADS=96 ===
+[INFO] MPI ranks (env) = 2
+[INFO] OMP_NUM_THREADS = 96
+[INFO] nodes=25000, nfreq_all=512, n_target_freq=32
+[TIMING] seconds=494.956910 ranks=2 threads=96
+
+
+
+=== RANKS=1 THREADS=192 ===
+[INFO] MPI ranks (env) = 1
+[INFO] OMP_NUM_THREADS = 192
+[INFO] nodes=25000, nfreq_all=512, n_target_freq=32
+[TIMING] seconds=1377.821722 ranks=1 threads=192
+
+
+=== Profiling finished at Fri 28 Nov 2025 03:39:50 AM EST ===

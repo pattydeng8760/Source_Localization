@@ -1,0 +1,25 @@
+MPI ranks (env) = 1
+nodes=5000, nfreq_all=8
+target_frequencies: [571.4285714285714]
+
+Calling C++ compute_acoustic_surface_pressure_mpi...
+      p_hat_s_cpp shape: (1, 5000)
+      target_indices_cpp: [2]
+C++ computation time: 0.627 seconds
+
+Calling Python reference compute_acoustic_surface_pressure_reference...
+      p_hat_s_py shape: (1, 5000)
+      target_indices_py: [2]
+Python reference computation time: 44.767 seconds
+
+Comparison between C++ and Python reference:
+      Max |Δp_s| : 4.367054614988562e-11
+      Mean |Δp_s|: 5.680217863082478e-12
+
+Sample values at selected observer nodes:
+       node    0: Python=2.504013e+04-1.783247e+04j, C++=2.504013e+04-1.783247e+04j, |Δ|=3.638e-12
+       node    3: Python=-3.584340e+04+3.914510e+02j, C++=-3.584340e+04+3.914510e+02j, |Δ|=1.099e-11
+       node 2500: Python=-4.585629e+04-4.804130e+04j, C++=-4.585629e+04-4.804130e+04j, |Δ|=7.276e-12
+       node 4999: Python=-3.058563e+04+2.460329e+04j, C++=-3.058563e+04+2.460329e+04j, |Δ|=0.000e+00
+
+Done.
