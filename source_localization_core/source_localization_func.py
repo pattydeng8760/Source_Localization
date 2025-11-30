@@ -8,10 +8,13 @@ import logging
 import os
 import multiprocessing as mp
 import warnings
+from types import SimpleNamespace
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from antares import Reader, Base, Zone, Instant, Writer
 from .source_localization_block import _compute_observer_chunk
-from .source_localization_utils import estimate_computation_time
+from .source_localization_utils import estimate_computation_time, print_cpp
+from .source_localization_cpp import compute_acoustic_surface_pressure_parallel_cpp
+from . import source_localization_core_cpp
 
 # Suppress numba warnings for cleaner output
 warnings.filterwarnings('ignore')
@@ -59,7 +62,7 @@ def compute_acoustic_surface_pressure_parallel(p_hat, zeta, freq_all, normal, ar
         Indices of target frequencies in the original frequency array
     """
     # custom log file to track the compute status
-    log_file = f"log_source_localization_{target_frequencies[0]}Hz_compute.txt"
+    log_file = f"log_source_localization_{str(int(target_frequencies[0]))}Hz_compute.txt"
 
     # --- Configure logging (overwrite file each run, flush every call) ---
     logging.basicConfig(
@@ -77,9 +80,9 @@ def compute_acoustic_surface_pressure_parallel(p_hat, zeta, freq_all, normal, ar
         handler.flush = handler.stream.flush
     
     # Transpose to get the expected shapes for the algorithm
-    p_hat = p_hat.T      # (nodes, nfreq) -> (nfreq, nodes)
-    zeta = zeta.T        # (nodes, 3) -> (3, nodes)
-    normal = normal.T    # (nodes, 3) -> (3, nodes)
+    p_hat = p_hat.T      #  (nfreq, nodes) -> (nodes, nfreq) 
+    zeta = zeta.T        #  (3, nodes) -> (nodes, 3)
+    normal = normal.T    #  (3, nodes) -> (nodes, 3)  
     
     nfreq_all, nodes = p_hat.shape
     target_frequencies = np.asarray(target_frequencies)
@@ -169,7 +172,7 @@ def compute_acoustic_surface_pressure_parallel(p_hat, zeta, freq_all, normal, ar
     return p_hat_s, target_freq_indices
 
 
-def compute_source_localization(whole_mesh:str,input_surface:list ,airfoil_mesh:str, surface_pressure_fft_data:str, freq_select:list, verbose:bool=False):
+def compute_source_localization(whole_mesh:str,input_surface:list ,airfoil_mesh:str, surface_pressure_fft_data:str, freq_select:list, compute_method:SimpleNamespace, verbose:bool=False):
     """
     Main function to compute source localization based on surface pressure data.
     Parameters:
@@ -185,12 +188,16 @@ def compute_source_localization(whole_mesh:str,input_surface:list ,airfoil_mesh:
     freq_select : list
         List of target frequencies to compute
     """
+    if compute_method.method == 'C':
+        flag = True
+        from .source_localization_cpp import get_mpi_rank_size_from_env
+        rank, _ = get_mpi_rank_size_from_env()
     text = 'Performing Surface Source Localization'
-    print(f'\n{text:.^80}\n')
-    print(' Performing Source Localization for frequency: {0:s} Hz'.format(str(freq_select[0])))
+    print_cpp(f'\n{text:.^80}\n') if flag else print(f'\n{text:.^80}\n') 
+    print_cpp(' Performing Source Localization for frequency: {0:s} Hz'.format(str(freq_select[0])))
     
     # Loading the surface mesh
-    print('----> Loading the Airfoil Surface Mesh')
+    print_cpp('----> Loading the Airfoil Surface Mesh')
     reader = Reader('hdf_antares')
     reader['filename'] = airfoil_mesh
     base = reader.read()  # b is the Base object of the Antares API
@@ -200,14 +207,14 @@ def compute_source_localization(whole_mesh:str,input_surface:list ,airfoil_mesh:
     y_coords = base[0][0]['y'] 
     z_coords = base[0][0]['z']
     
-    print(f"      Coordinate array shapes: x={x_coords.shape}, y={y_coords.shape}, z={z_coords.shape}")
+    print_cpp(f"      Coordinate array shapes: x={x_coords.shape}, y={y_coords.shape}, z={z_coords.shape}")
     
     # Create zeta with shape (nodes, 3)
     zeta = np.column_stack([x_coords, y_coords, z_coords])
     
-    print(f"      zeta shape after creation: {zeta.shape} (should be (nodes, 3))")
+    print_cpp(f"      zeta shape after creation: {zeta.shape} (should be (nodes, 3))")
     
-    print('\n----> Loading the Airfoil Normal Vector')
+    print_cpp('\n----> Loading the Airfoil Normal Vector')
     # Extracting the normal vector from the base
     shape = []                # Initializing an intermediate variable for the size of each group
     normals = []              # Initializing the normal vector
@@ -241,20 +248,20 @@ def compute_source_localization(whole_mesh:str,input_surface:list ,airfoil_mesh:
     normals = np.concatenate(normals, axis=0) if normals else np.array([])
     normals = normals / np.linalg.norm(normals, axis=1, keepdims=True)
     
-    print(f"      normals shape after processing: {normals.shape} (should be (nodes, 3))")
+    print_cpp(f"      normals shape after processing: {normals.shape} (should be (nodes, 3))")
     
     # Loading the Fourier Transform data
-    print('\n----> Loading the Fourier Transform of the Pressure Data: {0:s}'.format(surface_pressure_fft_data))
+    print_cpp("\n----> Loading the Fourier Transform of the Pressure Data: {}".format(surface_pressure_fft_data))
     with h5py.File(surface_pressure_fft_data, 'r') as h5f:
         p_hat = h5f['pressure_fft'][:]
         freq = h5f['frequency'][:]
         k = np.pi * 2 * freq / 340     # The wavenumber
         assert (np.shape(p_hat)[0] == np.shape(normals)[0]), 'The number of nodes in the pressure data and the normal vector do not match'
     
-    print('     The pressure data is %d (nodes) x %d (frequency bins)' % (np.shape(p_hat)[0], np.shape(p_hat)[1]))
+    print_cpp('     The pressure data is %d (nodes) x %d (frequency bins)' % (np.shape(p_hat)[0], np.shape(p_hat)[1]))
     
     # The surface area from the surface mesh
-    print('\n----> Computing the airfoil surface area')
+    print_cpp('\n----> Computing the airfoil surface area')
     with h5py.File(airfoil_mesh, 'r') as h5_file:
         if len(input_surface) == 1:
             surface_volume = h5_file[f'/{input_surface[0]}/instants/0000/variables/VD_volume_node'][:]
@@ -264,14 +271,14 @@ def compute_source_localization(whole_mesh:str,input_surface:list ,airfoil_mesh:
         # 4) Check sizes match:
         assert surface_area.shape[0] == p_hat.shape[0], ("     The number of elements in p_hat must match the number of area entries")
     
-    print("     The surface area of the airfoil is %f m^2" % np.sum(surface_area))
+    print_cpp("     The surface area of the airfoil is %f m^2" % np.sum(surface_area))
     
     # Debug print to check shapes
-    print(f"\n----> FINAL Check - Array shapes:")
-    print(f"      zeta shape: {zeta.shape} (should be (nodes, 3))")
-    print(f"      normals shape: {normals.shape} (should be (nodes, 3))")
-    print(f"      p_hat shape: {p_hat.shape} (should be (nodes, nfreq))")
-    print(f"      surface_area shape: {surface_area.shape} (should be (nodes,))")
+    print_cpp(f"\n----> FINAL Check - Array shapes:")
+    print_cpp(f"      zeta shape: {zeta.shape} (should be (nodes, 3))")
+    print_cpp(f"      normals shape: {normals.shape} (should be (nodes, 3))")
+    print_cpp(f"      p_hat shape: {p_hat.shape} (should be (nodes, nfreq))")
+    print_cpp(f"      surface_area shape: {surface_area.shape} (should be (nodes,))")
     
     # Verify all shapes are consistent
     nodes = zeta.shape[0]
@@ -280,23 +287,51 @@ def compute_source_localization(whole_mesh:str,input_surface:list ,airfoil_mesh:
     assert p_hat.shape[0] == nodes, f"p_hat nodes {p_hat.shape[0]} != {nodes}"
     assert surface_area.shape[0] == nodes, f"surface_area nodes {surface_area.shape[0]} != {nodes}"
     
-    print("      All array shapes are consistent!")
-    print("\n----> Starting computation...")
+    print_cpp("      All array shapes are consistent!")
+    print_cpp("\n----> Starting computation...")
     
-    #estimate_computation_time(np.shape(p_hat)[0], len(freq_select))
+    # Estimate_computation_time(np.shape(p_hat)[0], len(freq_select))
     
     # Compute with parallel processing for target frequencies
-    p_hat_s, target_indices = compute_acoustic_surface_pressure_parallel(
-        p_hat, zeta, freq, normals, surface_area,
-        target_frequencies=freq_select,
-        n_workers=mp.cpu_count(),
-        chunk_size=None,
-        verbose=verbose
-    )
+    if compute_method.method == 'C':
+        print_cpp(f"      Using C++ parallel computation over observer points with {compute_method.num_ranks} ranks and {compute_method.num_threads} threads")
+        from .source_localization_cpp import (
+            compute_acoustic_surface_pressure_parallel_cpp,
+            get_mpi_rank_size_from_env,
+        )
+        rank, size = get_mpi_rank_size_from_env()
+        n_workers = size if size > 0 else 1
+        n_threads = int(os.environ.get("OMP_NUM_THREADS", "1"))
+
+        print_cpp("\n----> Calling C++ backend for surface source localization")
+        print_cpp(f"      MPI ranks (world size): {n_workers}")
+        print_cpp(f"      OMP threads per rank : {n_threads}")
+
+        p_hat_s, target_indices = compute_acoustic_surface_pressure_parallel_cpp(
+            p_hat,           # (nodes, nfreq)
+            zeta,            # (nodes, 3)
+            freq,            # full frequency array
+            normals,         # (nodes, 3)
+            surface_area,    # (nodes,)
+            target_frequencies=freq_select,
+            speed_of_sound=343.0,
+            n_workers=n_workers,
+            n_threads=n_threads,
+        )
+        
+    else:
+        print_cpp(f"      Using python parallel computation over observer points with {mp.cpu_count()} workers")
+        p_hat_s, target_indices = compute_acoustic_surface_pressure_parallel(
+            p_hat, zeta, freq, normals, surface_area,
+            target_frequencies=freq_select,
+            n_workers=mp.cpu_count(),
+            chunk_size=None,
+            verbose=verbose
+        )
     
-    print("\n----> Computation complete!")
-    print(f"      Output shape: {p_hat_s.shape}")
-    print(f"      Target frequency indices in original array: {target_indices}")
+    print_cpp("\n----> Computation complete!")
+    print_cpp(f"      Output shape: {p_hat_s.shape}")
+    print_cpp(f"      Target frequency indices in original array: {target_indices}")
     
     # Show results for each target frequency
     for i, (freq_val, idx) in enumerate(zip(freq_select, target_indices)):
@@ -304,14 +339,14 @@ def compute_source_localization(whole_mesh:str,input_surface:list ,airfoil_mesh:
         acoustic_max = np.max(np.abs(p_hat_s[i, :]))
         reduction = original_max / acoustic_max if acoustic_max > 0 else np.inf
         
-        print(f"      Frequency {freq_val} Hz: Max reduction = {reduction:.1f}")
+        print_cpp(f"      Frequency {freq_val} Hz: Max reduction = {reduction:.1f}")
     
-    print('\n----> Compelted Source Localization for frequency: {0:s} Hz'.format(str(freq_select)))
+    print_cpp('\n----> Compelted Source Localization for frequency: {0:s} Hz'.format(str(freq_select)))
     return p_hat_s, target_indices
 
 
 def output_source_localization(airfoil_mesh, p_hat_s, surface_pressure_fft_data, 
-                                        freq_select, target_freq_indices, output_path):
+                                        freq_select, target_freq_indices, output_path, compute_method:SimpleNamespace):
     """
     Corrected function to output source localization results.
     
@@ -330,7 +365,11 @@ def output_source_localization(airfoil_mesh, p_hat_s, surface_pressure_fft_data,
     output_path : str
         Output directory path
     """
-    
+    if compute_method.method == 'C':
+        from .source_localization_cpp import get_mpi_rank_size_from_env
+        rank, _ = get_mpi_rank_size_from_env()
+        if rank != 0:
+            return  # non-root ranks do nothing
     # Load original data
     with h5py.File(surface_pressure_fft_data, 'r') as h5f:
         p_hat_orig = h5f['pressure_fft'][:]  # Shape: (nodes, nfreq_all)

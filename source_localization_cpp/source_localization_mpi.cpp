@@ -1,25 +1,21 @@
-// source_loc_mpi.cpp
+/// @file source_localization_mpi.cpp
+/// @brief Compute surface integral for multiple observer positions using MPI and OpenMP parallelization.
+/// @author Patrick G.C. Deng
+/// @date November 25, 2025
+/// @details This file implements the function to compute the surface integral for source localization at multiple observer positions and frequencies using MPI for distributed computing and OpenMP for shared-memory parallelism.
+/// Calculates p̂_S(x) = (1/2π) ∫ [exp(-ikr)(ikr + 1) * (e_r · n_ξ) / r²] * p̂(ξ) dS(ξ) for all observer positions parallelized with MPI
+/// Equivalent to p̂_S(x) = (1/2π) ∑ [exp(-ikr)(ikr + 1) * (e_r · n_ξ) / r²] * p̂(ξ) * ΔS(ξ) 
 
 #define OMPI_SKIP_MPICXX 1
 #define MPICH_SKIP_MPICXX 1
-
-#include <mpi.h>
-#include <omp.h>
-
-#include <pybind11/pybind11.h>
-#include <pybind11/numpy.h>
-
-#include <vector>
-#include <complex>
-#include <cmath>
-#include <stdexcept>
-
-#include <rarray>
-#include "source_loc_single_obs.h"
+#include "source_localization_worker.h"
+#include "source_localization_mpi.h"
+namespace py = pybind11;
 
 // Track whether this module itself called MPI_Init
 static bool g_mpi_initialized_here = false;
 
+// Finalize MPI at program exit if we initialized it
 static void finalize_mpi_at_exit()
 {
     int finalized = 0;
@@ -29,7 +25,14 @@ static void finalize_mpi_at_exit()
     }
 }
 
-namespace py = pybind11;
+/// @param p_hat_in Surface pressure spectrum on all nodes and frequencies (nodes, nfreq_all)
+/// @param zeta_in Node coordinates (nodes, 3)
+/// @param normal_in Surface normals (nodes, 3)
+/// @param area_in Surface element areas (nodes,)
+/// @param freq_all_in Full FFT frequency vector (nfreq_all,)
+/// @param target_freq_in Frequencies to extract from freq_all (nearest neighbor) (n_target_freq,)
+/// @param speed_of_sound Speed of sound used to compute k = 2*pi*f/c
+
 py::tuple compute_acoustic_surface_pressure_mpi(
     py::array_t<std::complex<double>, py::array::c_style | py::array::forcecast> p_hat_in,       // (nodes, nfreq_all)
     py::array_t<double,             py::array::c_style | py::array::forcecast> zeta_in,          // (nodes, 3)
@@ -48,7 +51,7 @@ py::tuple compute_acoustic_surface_pressure_mpi(
         g_mpi_initialized_here = true;
         std::atexit(finalize_mpi_at_exit);
     }
-
+    // Get MPI rank and size from the global communicator
     int world_size = 1;
     int world_rank = 0;
     MPI_Comm_size(MPI_COMM_WORLD, &world_size);
@@ -90,8 +93,9 @@ py::tuple compute_acoustic_surface_pressure_mpi(
         throw std::runtime_error("zeta, normal, area must all have same number of nodes as p_hat");
     }
 
+    // Extract the number of target frequencies
     const int n_target_freq = static_cast<int>(target_freq_buf.shape[0]);
-
+    // Pointers to input data
     auto* p_hat_ptr    = static_cast<std::complex<double>*>(p_hat_buf.ptr); // (nodes, nfreq_all)
     auto* zeta_ptr     = static_cast<double*>(zeta_buf.ptr);                // (nodes, 3)
     auto* normal_ptr   = static_cast<double*>(normal_buf.ptr);              // (nodes, 3)
@@ -103,9 +107,9 @@ py::tuple compute_acoustic_surface_pressure_mpi(
     std::vector<int>    target_indices(n_target_freq);
     std::vector<double> target_values(n_target_freq);
 
+    // Find closest frequency in freq_all for the input target frequency
     for (int i = 0; i < n_target_freq; ++i) {
         const double tf = target_ptr[i];
-
         double best_diff = std::abs(freq_all_ptr[0] - tf);
         int best_idx = 0;
         for (int j = 1; j < nfreq_all; ++j) {
@@ -115,7 +119,6 @@ py::tuple compute_acoustic_surface_pressure_mpi(
                 best_idx  = j;
             }
         }
-
         const double closest_freq = freq_all_ptr[best_idx];
         target_indices[i] = best_idx;
         target_values[i]  = closest_freq;
@@ -277,9 +280,8 @@ py::tuple compute_acoustic_surface_pressure_mpi(
 
 
 // pybind11 module definition
-PYBIND11_MODULE(source_loc_cpp, m) {
+PYBIND11_MODULE(source_localization_core_cpp, m) {
     m.doc() = "C++/MPI/OpenMP backend for Delfs surface source localization";
-
     m.def(
         "compute_acoustic_surface_pressure_mpi",
         &compute_acoustic_surface_pressure_mpi,

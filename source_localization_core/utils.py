@@ -177,6 +177,7 @@ def setup_logging(log_file):
     sys.stdout = open(log_file, "w", buffering=1)
 
 def init_logging_from_cut(var, freq_select):
+    freq_select = [int(freq) for freq in freq_select]
     freq_str = "_".join(map(str, freq_select))
     log_file = f"log_source_localization_{var}_{freq_str}.txt"
     setup_logging(log_file)

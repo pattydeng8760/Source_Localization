@@ -1,12 +1,12 @@
-/// @file source_loc_single_obs.cpp
+/// @file source_localization_worker.cpp
 /// @brief Compute surface integral for a single observer position.
 /// @author Patrick G.C. Deng
 /// @date November 25, 2025
 /// @details This file implements the function to compute the surface integral for source localization at one observer position for one frequency
-/// Calculates p̂_S(x) = (1/2π) ∫ [exp(-ikr)(ikr + 1) * (e_r · n_ξ) / r²] * p̂(ξ) dS(ξ) at a single observer position x 
-/// Equivalent to p̂_S(x) = (1/2π) ∑ [exp(-ikr)(ikr + 1) * (e_r · n_ξ) / r²] * p̂(ξ) * ΔS(ξ) over all source elements
+/// Calculates p̂_S(x) = (1/2π) ∫ [exp(-ikr)(ikr + 1) * (e_r · n_ξ) / r²] * p̂(ξ) dS(ξ) at a single observer position x parallelized with OpenMP
+/// Equivalent to p̂_S(x) = (1/2π) ∑ [exp(-ikr)(ikr + 1) * (e_r · n_ξ) / r²] * p̂(ξ) * ΔS(ξ) over all source elements parallelized with OpenMP
 
-#include "source_loc_single_obs.h"
+#include "source_localization_worker.h"
 
 /// @param x_obs Observer position (3,)
 /// @param zeta Source element node positions (nodes, 3) row-major

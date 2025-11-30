@@ -1,5 +1,5 @@
-#IFNDEF SOURCE_LOC_MPI_H
-#define SOURCE_LOC_MPI_H
+#ifndef SOURCE_LOCALIZATION_MPI_H
+#define SOURCE_LOCALIZATION_MPI_H
 #define OMPI_SKIP_MPICXX 1
 #define MPICH_SKIP_MPICXX 1
 #include <pybind11/pybind11.h>
@@ -11,7 +11,6 @@
 #include <cmath>
 #include <stdexcept>
 #include <rarray>
-#include "source_loc_single_obs.h"
 
 namespace py = pybind11;
 
@@ -25,4 +24,4 @@ py::tuple compute_acoustic_surface_pressure_mpi(
     double speed_of_sound
 );
 
-#ENDIF // SOURCE_LOC_MPI_H
+#endif // SOURCE_LOCALIZATION_MPI_H

@@ -1,1 +1,0 @@
-module load gcc/8.3.0 rarray/2.5.0 openmpi/4.1.4 hdf5/1.8.21
