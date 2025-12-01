@@ -8,6 +8,7 @@ import logging
 import os
 import multiprocessing as mp
 import warnings
+import time
 from types import SimpleNamespace
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from antares import Reader, Base, Zone, Instant, Writer
@@ -193,7 +194,7 @@ def compute_source_localization(whole_mesh:str,input_surface:list ,airfoil_mesh:
         from .source_localization_cpp import get_mpi_rank_size_from_env
         rank, _ = get_mpi_rank_size_from_env()
     text = 'Performing Surface Source Localization'
-    print_cpp(f'\n{text:.^80}\n') if flag else print(f'\n{text:.^80}\n') 
+    print_cpp(f'\n{text:.^80}\n')
     print_cpp(' Performing Source Localization for frequency: {0:s} Hz'.format(str(freq_select[0])))
     
     # Loading the surface mesh
@@ -290,7 +291,7 @@ def compute_source_localization(whole_mesh:str,input_surface:list ,airfoil_mesh:
     print_cpp("      All array shapes are consistent!")
     print_cpp("\n----> Starting computation...")
     
-    # Estimate_computation_time(np.shape(p_hat)[0], len(freq_select))
+    t0 = time.time()
     
     # Compute with parallel processing for target frequencies
     if compute_method.method == 'C':
@@ -328,10 +329,11 @@ def compute_source_localization(whole_mesh:str,input_surface:list ,airfoil_mesh:
             chunk_size=None,
             verbose=verbose
         )
-    
+    t1 = time.time()
     print_cpp("\n----> Computation complete!")
     print_cpp(f"      Output shape: {p_hat_s.shape}")
     print_cpp(f"      Target frequency indices in original array: {target_indices}")
+    print_cpp(f"      Total computation time: {t1 - t0:.1f} seconds")
     
     # Show results for each target frequency
     for i, (freq_val, idx) in enumerate(zip(freq_select, target_indices)):

@@ -169,9 +169,12 @@ def replace_zeros_vectorized(data):
 def next_greater_power_of_2(x):
     return 2**(x-1).bit_length()
 
-def print(text, **kwargs):
-    builtins.print(text, **kwargs)
-    os.fsync(sys.stdout)
+def print(*args, **kwargs):
+    builtins.print(*args, **kwargs)
+    try:
+        sys.stdout.flush()
+    except Exception:
+        pass
 
 def setup_logging(log_file):
     sys.stdout = open(log_file, "w", buffering=1)

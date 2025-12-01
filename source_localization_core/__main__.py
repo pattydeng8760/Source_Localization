@@ -3,10 +3,27 @@ from .extract import extract_data, extract_files, extract_surface
 from .fft_surface import dft_surface_data, fft_surface_data, source_fft
 from .utils import init_logging_from_cut
 from .SourceLocalization import SourceLocalization, parse_arguments
+from argparse import Namespace
 
-def main():
-    # Parse CLI args using existing parse_arguments()
-    args = parse_arguments()
+def main(argobj=None):
+    """
+    Entry point for source_localization_core.
+
+    - If argobj is a Namespace -> use it directly (programmatic use).
+    - If argobj is a list/tuple of strings -> parse_arguments(argobj).
+    - If argobj is None -> parse_arguments() from sys.argv[1:].
+    """
+    # Decide how to get `args`
+    if isinstance(argobj, Namespace):
+        args = argobj
+    elif isinstance(argobj, (list, tuple)):
+        args = parse_arguments(argobj)
+    elif argobj is None:
+        args = parse_arguments()
+    else:
+        raise TypeError(
+            f"main() expected Namespace, list/tuple, or None, got {type(argobj)}"
+        )
 
     if args is None:
         raise RuntimeError("parse_arguments() returned None – please fix its implementation.")
