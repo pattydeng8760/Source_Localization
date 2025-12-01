@@ -10,6 +10,6 @@
 #SBATCH --account=rrg-plavoie
 
 # =-=-=-=-=-=-=-=-=-=-=-=-=-
-source /project/rrg-plavoie/denggua1/pd_env.s
+source /project/rrg-plavoie/denggua1/pd_env.sh
 
 python ./run_source_loc.py
